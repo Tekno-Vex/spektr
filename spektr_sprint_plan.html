@@ -1,0 +1,818 @@
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:ital,wght@0,300;0,400;1,300&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cream: #f2ede4;
+    --ink: #1a1814;
+    --rust: #c0392b;
+    --rust-light: #e8d5d2;
+    --muted: #7a7068;
+    --border: #cfc9be;
+    --tag-bg: #e8e3d8;
+    --done-bg: #d4f0e0;
+    --done-text: #1a6640;
+    --check-active: #c0392b;
+  }
+
+  body {
+    background: var(--cream);
+    color: var(--ink);
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 15px;
+    line-height: 1.65;
+    padding: 20px 16px 40px;
+  }
+
+  .masthead {
+    text-align: center;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 14px;
+    margin-bottom: 6px;
+  }
+
+  .masthead h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    line-height: 1.2;
+  }
+
+  .masthead .sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  .issue-line {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-align: center;
+    letter-spacing: 2px;
+    margin-bottom: 20px;
+    padding-top: 4px;
+  }
+
+  .progress-bar-wrap {
+    background: var(--border);
+    border-radius: 2px;
+    height: 4px;
+    margin-bottom: 24px;
+    overflow: hidden;
+  }
+
+  .progress-bar-fill {
+    height: 4px;
+    background: var(--rust);
+    border-radius: 2px;
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+
+  .progress-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-align: right;
+    margin-top: -20px;
+    margin-bottom: 16px;
+    padding-right: 2px;
+  }
+
+  /* ── Stack legend ── */
+  .stack-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 24px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    background: white;
+    border-radius: 2px;
+  }
+
+  .stack-legend-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--muted);
+    width: 100%;
+    margin-bottom: 4px;
+  }
+
+  .legend-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8.5px;
+    background: var(--rust-light);
+    color: var(--rust);
+    padding: 2px 7px;
+    border-radius: 1px;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+
+  .sprint {
+    border: 1px solid var(--border);
+    margin-bottom: 20px;
+    border-radius: 2px;
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+  }
+
+  .sprint.active { box-shadow: 0 2px 12px rgba(192,57,43,0.1); }
+  .sprint.completed { border-color: #a8d8bc; }
+
+  .sprint-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px 12px;
+    cursor: pointer;
+    background: white;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+    user-select: none;
+  }
+
+  .sprint-header:hover { background: #faf8f4; }
+  .sprint.completed .sprint-header { background: #f4fbf7; }
+
+  .sprint-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--rust);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    padding-top: 3px;
+    min-width: 64px;
+  }
+
+  .sprint-title-block { flex: 1; }
+
+  .sprint-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+
+  .sprint-tag {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    background: var(--tag-bg);
+    color: var(--muted);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 1px;
+    margin-top: 4px;
+  }
+
+  .sprint.completed .sprint-tag {
+    background: var(--done-bg);
+    color: var(--done-text);
+  }
+
+  .sprint-check-count {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    padding-top: 4px;
+  }
+
+  .chevron {
+    font-size: 13px;
+    color: var(--muted);
+    padding-top: 4px;
+    transition: transform 0.2s;
+  }
+
+  .sprint.open .chevron { transform: rotate(90deg); }
+
+  .sprint-body {
+    display: none;
+    padding: 16px;
+    background: white;
+    border-top: 1px solid var(--border);
+  }
+
+  .sprint.open .sprint-body { display: block; }
+  .sprint.completed .sprint-body { background: #f9fdf9; }
+
+  .what-block {
+    background: var(--cream);
+    border-left: 3px solid var(--rust);
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #2a2520;
+  }
+
+  .what-block strong {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--rust);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .concepts-block {
+    background: #f8f5ef;
+    border: 1px dashed var(--border);
+    padding: 9px 14px;
+    margin-bottom: 16px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: #2a2520;
+  }
+
+  .concepts-block strong {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 5px;
+  }
+
+  .concept-pill {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8px;
+    background: var(--ink);
+    color: var(--cream);
+    padding: 2px 7px;
+    border-radius: 1px;
+    letter-spacing: 0.5px;
+    margin: 2px 3px 2px 0;
+  }
+
+  .section-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 4px;
+    margin-bottom: 10px;
+    margin-top: 16px;
+  }
+
+  .story-list { margin-bottom: 4px; }
+
+  .story {
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: #2a2520;
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--border);
+    font-style: italic;
+  }
+
+  .story:last-child { border-bottom: none; }
+
+  .check-list { list-style: none; }
+
+  .check-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 5px 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--ink);
+    cursor: pointer;
+    border-bottom: 1px solid #f0ede8;
+  }
+
+  .check-item:last-child { border-bottom: none; }
+  .check-item:hover { background: #faf8f4; margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
+
+  .check-item input[type=checkbox] { display: none; }
+
+  .check-box {
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid var(--border);
+    border-radius: 2px;
+    flex-shrink: 0;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    font-size: 10px;
+    color: transparent;
+  }
+
+  .check-item.done .check-box {
+    background: var(--check-active);
+    border-color: var(--check-active);
+    color: white;
+  }
+
+  .check-item.done .check-text {
+    text-decoration: line-through;
+    color: var(--muted);
+  }
+
+  .stack-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8.5px;
+    background: var(--rust-light);
+    color: var(--rust);
+    padding: 1px 6px;
+    border-radius: 1px;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+
+  .dod-block {
+    background: #f4fbf7;
+    border: 1px solid #a8d8bc;
+    padding: 10px 14px;
+    margin-top: 16px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .dod-block strong {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #1a6640;
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  .dod-block ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  .dod-block ul li::before {
+    content: "→ ";
+    color: #1a6640;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .footer-line {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--border);
+    text-align: center;
+    margin-top: 32px;
+    letter-spacing: 2px;
+  }
+</style>
+
+<div class="masthead">
+  <div class="sub">Engineering Sprint Plan · Master's Portfolio Project</div>
+  <h1>Spektr</h1>
+  <div class="sub" style="margin-top:6px;font-size:10px">Audio Version Comparison Platform</div>
+</div>
+<div class="issue-line">React · FastAPI · Celery · Redis · PostgreSQL · Claude AI · 8 Sprints · ~14 Weeks · 100% Free Infrastructure</div>
+
+<div class="progress-bar-wrap">
+  <div class="progress-bar-fill" id="globalBar"></div>
+</div>
+<div class="progress-label" id="globalLabel">0 / 0 tasks complete</div>
+
+<div class="stack-legend">
+  <div class="stack-legend-label">Tech Stack at a Glance</div>
+  <span class="legend-badge">React 18 + TypeScript</span>
+  <span class="legend-badge">Vite + TailwindCSS</span>
+  <span class="legend-badge">D3.js + Recharts</span>
+  <span class="legend-badge">Zustand + TanStack Query</span>
+  <span class="legend-badge">FastAPI (Python)</span>
+  <span class="legend-badge">Celery + Redis</span>
+  <span class="legend-badge">PostgreSQL + SQLAlchemy</span>
+  <span class="legend-badge">Alembic Migrations</span>
+  <span class="legend-badge">JWT + bcrypt</span>
+  <span class="legend-badge">Anthropic Claude API</span>
+  <span class="legend-badge">Supabase Storage</span>
+  <span class="legend-badge">Upstash Redis</span>
+  <span class="legend-badge">Vercel + Render</span>
+  <span class="legend-badge">Docker + Compose</span>
+  <span class="legend-badge">GitHub Actions CI/CD</span>
+  <span class="legend-badge">pytest + Playwright</span>
+</div>
+
+<div id="sprints-container"></div>
+
+<div class="footer-line">Spektr Sprint Plan v1.0 · Full-Stack + Distributed Systems + AI/ML + DevOps</div>
+
+<script>
+const SPRINTS = [
+  {
+    num: "Sprint 00",
+    title: "Foundation & Developer Infrastructure",
+    duration: "Week 1",
+    tag: "DevOps · Setup",
+    what: "Set up the entire project skeleton so every future sprint starts from a working, version-controlled, containerized base. No features yet — just infrastructure done right. This sprint alone signals professionalism to any interviewer who looks at your repo history: proper monorepo layout, Docker Compose for one-command local dev, and a CI pipeline that enforces linting and tests on every PR.",
+    concepts: ["Containerization", "CI/CD Pipelines", "Database Migrations", "Monorepo Architecture", "Environment Management"],
+    stories: [
+      "As a developer, I want the entire stack to start with docker-compose up so there are no 'works on my machine' issues across environments.",
+      "As a developer, I want tests to run automatically on every pull request so broken code never merges to main.",
+      "As a developer, I want a versioned database schema managed with Alembic so schema changes are tracked, reproducible, and reversible.",
+      "As a developer, I want all environment variables documented in .env.example so any contributor can onboard quickly.",
+    ],
+    checks: [
+      { text: "Monorepo initialized: frontend/ (React+Vite+TypeScript), backend/ (FastAPI), docker-compose.yml, .github/workflows/", badge: "Setup" },
+      { text: "docker-compose up --build starts: frontend (5173), backend (8000), postgres (5432), redis (6379) in under 2 minutes", badge: "Docker" },
+      { text: "Hot reload works for both frontend (Vite HMR) and backend (uvicorn --reload) via mounted volumes", badge: "DX" },
+      { text: "Multi-stage Dockerfiles (builder → runner) produce lean production images", badge: "Docker" },
+      { text: "GitHub Actions CI: Lint → Type Check → Unit Tests → Build runs on every push to any branch", badge: "CI" },
+      { text: "Backend CI: ruff (linter) + mypy (type checker) + pytest; Frontend CI: ESLint + tsc --noEmit + Vitest", badge: "CI" },
+      { text: "Alembic initialized; initial migration creates: users, analyses, audio_files, jobs tables", badge: "DB" },
+      { text: "Backend auto-applies alembic upgrade head on startup; alembic downgrade -1 tested and working", badge: "DB" },
+      { text: "GET /health endpoint returns {status: ok}; all ports confirmed healthy in compose", badge: "Infra" },
+      { text: "All secrets in .env (gitignored); .env.example documents every required variable with descriptions", badge: "Security" },
+      { text: "README covers: project overview, tech stack, local setup in under 10 steps", badge: "Docs" },
+    ],
+    dod: [
+      "git clone + docker-compose up works on a fresh machine with zero manual steps",
+      "GitHub Actions CI pipeline passes on main branch",
+      "Database migrations apply and roll back cleanly",
+      "README enables a stranger to run locally in under 10 minutes",
+    ]
+  },
+  {
+    num: "Sprint 01",
+    title: "File Upload Pipeline",
+    duration: "Weeks 2–3",
+    tag: "Backend · Distributed Systems",
+    what: "Build the complete file ingestion system: the user selects audio files in the browser, they upload to cloud storage, and a background job is queued for processing. This sprint introduces chunked uploads, server-side file validation, cloud object storage, the Celery task queue, and real-time WebSocket progress updates — a textbook distributed systems architecture you can draw on a whiteboard in any interview.",
+    concepts: ["Message Queue Pattern", "Producer/Consumer Architecture", "Redis Pub/Sub", "WebSockets", "Idempotent Job Design", "Chunked File Upload", "Input Validation & Sanitization"],
+    stories: [
+      "As a user, I want to drag-and-drop or click to select multiple audio files with labels so I can easily upload my song versions.",
+      "As a user, I want to see a real upload progress bar per file so I know my large FLAC files are actually uploading.",
+      "As a developer, I want the API to validate file MIME types server-side (not just extension) so malicious files never reach storage.",
+      "As a user, I want audio processing to start immediately after upload without blocking the UI so I'm not staring at a frozen screen.",
+      "As a user, I want to see real-time stage-by-stage progress as my files are analyzed so I know how long to wait.",
+    ],
+    checks: [
+      { text: "react-dropzone component accepts .mp3, .flac, .wav, .ogg, .m4a; rejects all other formats with clear error message", badge: "Frontend" },
+      { text: "Max constraints enforced client-side and server-side: 5 files per analysis, 200MB per file", badge: "Validation" },
+      { text: "Each file gets a user-editable label input (e.g. 'Original 1988', 'Remaster 2002')", badge: "UX" },
+      { text: "Parallel upload with per-file progress bars via axios onUploadProgress (real %, not fake animation)", badge: "Upload" },
+      { text: "POST /api/v1/analyses creates analysis record; POST /api/v1/analyses/{id}/files accepts one file per call", badge: "API" },
+      { text: "Backend validates MIME type using python-magic (not just file extension); executables disguised as .mp3 rejected", badge: "Security" },
+      { text: "Files stored in Supabase Storage under analyses/{analysis_id}/{uuid}.{ext}; metadata saved to audio_files table", badge: "Storage" },
+      { text: "POST /api/v1/analyses/{id}/process enqueues Celery task and immediately returns job_id (non-blocking)", badge: "Queue" },
+      { text: "Celery worker picks up task from Redis broker; job status tracked: pending → processing → completed | failed", badge: "Celery" },
+      { text: "Job retry: max 3 attempts with exponential backoff on worker crash; error stored in jobs.error_msg on final failure", badge: "Resilience" },
+      { text: "WebSocket ws://api/ws/analyses/{id}: worker publishes progress to Redis Pub/Sub channel; FastAPI subscribes and forwards to browser", badge: "WebSocket" },
+      { text: "Progress events: { stage, pct } covering Loading → Waveform → Spectrogram → Loudness → Frequency → AI → Done", badge: "WebSocket" },
+      { text: "WebSocket client auto-reconnects with exponential backoff on drop; falls back to GET /status polling", badge: "Resilience" },
+      { text: "All upload endpoints documented in auto-generated Swagger UI at /docs", badge: "Docs" },
+    ],
+    dod: [
+      "Full upload flow works end-to-end: drag files → upload → queue → worker picks up job",
+      "Malicious file upload attempts rejected server-side (MIME validation tested with renamed executable)",
+      "WebSocket progress events fire correctly from Celery worker → Redis Pub/Sub → FastAPI → Browser",
+      "Integration test: upload 2 real audio files and verify they appear in DB + Supabase Storage",
+    ]
+  },
+  {
+    num: "Sprint 02",
+    title: "Audio Processing Engine",
+    duration: "Weeks 4–5",
+    tag: "Backend · DSP · Algorithms",
+    what: "Implement all audio analysis algorithms inside the Celery worker. This is the DSP (Digital Signal Processing) core of the application — the most technically impressive part for CS interviews. You'll implement the FFT, the industry-standard DR14 dynamic range algorithm, Welch's power spectral density method, and Savitzky-Golay smoothing. Describing how and why you chose these algorithms over simpler approximations is a perfect interview answer about engineering depth.",
+    concepts: ["Fast Fourier Transform O(n log n)", "Short-Time Fourier Transform (STFT)", "DR14 Dynamic Range Algorithm", "Welch Power Spectral Density", "Savitzky-Golay Smoothing", "Mid/Side Stereo Analysis", "Redis Cache-Aside Pattern", "Numpy Memory Optimization"],
+    stories: [
+      "As the system, I want waveform data downsampled via RMS chunking so the frontend can render it without transferring millions of raw samples.",
+      "As the system, I want to compute the DR14 dynamic range score (not a simple peak-to-RMS approximation) so the metric matches professional mastering tools.",
+      "As the system, I want frequency response computed via Welch's PSD method so the result is more stable than a single FFT snapshot.",
+      "As the system, I want analysis results cached in Redis and stored as JSONB in Postgres so re-fetching a completed analysis is instant.",
+    ],
+    checks: [
+      { text: "Waveform: audio loaded at native sample rate; downsampled to 2,000 RMS-chunked points (preserves peaks; not naive skipping)", badge: "Algorithm" },
+      { text: "Stereo files merged to mono before analysis; mono/stereo correctly detected and handled", badge: "Audio" },
+      { text: "Spectrogram: librosa.stft with n_fft=2048, hop_length=512; converted to dB via amplitude_to_db; downsampled to 256×500 for transfer", badge: "DSP" },
+      { text: "DR14 algorithm implemented correctly: 3-second block segmentation, RMS per block, DR = avg_peak_dB − avg_rms_dB across blocks", badge: "Algorithm" },
+      { text: "Also computed: integrated LUFS, true peak dBTP, crest factor; returned as structured metrics object", badge: "Audio" },
+      { text: "Frequency response: scipy.signal.welch (PSD) with 512 points 20Hz–Nyquist; normalized to 0dB at 1kHz reference; HF rolloff point detected", badge: "DSP" },
+      { text: "RMS loudness curve: 50ms windows, 25ms hop; Savitzky-Golay smoothing applied; downsampled to 1000 points", badge: "Algorithm" },
+      { text: "Dynamic section detection: regions automatically labelled quiet / loud / peak based on RMS threshold analysis", badge: "Feature" },
+      { text: "Stereo analysis: mid/side RMS over time; phase correlation coefficient (−1 to +1); stereo width metric computed", badge: "Audio" },
+      { text: "All results serialized to JSON with no NaN or Infinity values (common numpy trap — explicitly handled)", badge: "Quality" },
+      { text: "Results stored as JSONB in analysis_results table; cached in Redis key analysis:{id}:results with 24hr TTL", badge: "Caching" },
+      { text: "Cache-aside pattern: check Redis → miss → query DB → populate Redis; invalidated on analysis re-run", badge: "Caching" },
+      { text: "Processing 3 × 60s audio files completes in under 90 seconds; 200MB file does not cause OOM (memory profiled)", badge: "Performance" },
+    ],
+    dod: [
+      "All 6 algorithms pass unit tests with known reference audio (sine waves, known-DR test files)",
+      "DR14 output matches reference values from dr14.com tool within ±0.5dB",
+      "Results serialized cleanly to JSON — no NaN/Infinity values for any test file",
+      "Integration test: enqueue analysis → worker runs → all results appear in DB and Redis",
+    ]
+  },
+  {
+    num: "Sprint 03",
+    title: "Visualization Frontend",
+    duration: "Weeks 6–7",
+    tag: "Frontend · D3.js · Canvas",
+    what: "Build the results page with all interactive charts. The centerpiece is a custom HTML5 Canvas spectrogram renderer using D3.js for axis overlays — chosen over SVG because rendering a 256×500 heatmap in SVG degrades browser performance. This hybrid Canvas + D3 pattern is a rare frontend skill that stands out. The rest of the charts use Recharts for standard visualizations with D3-inspired interactions.",
+    concepts: ["Canvas vs SVG Performance Tradeoffs", "D3.js Scales and Axes", "React Canvas Integration", "Memoization for Expensive Renders", "Synchronized Cross-Chart Interactions", "Accessible Data Visualization", "Responsive Charting"],
+    stories: [
+      "As a user, I want a sticky nav that lets me jump between analysis sections so I can navigate the results page without scrolling blindly.",
+      "As a user, I want to hover over any spectrogram and see a crosshair appear on all spectrograms simultaneously so I can compare frequency content at the same moment in time.",
+      "As a user, I want the dynamic range chart to show a 'Winner' badge and color-coded bars so I instantly know which version is most dynamic.",
+      "As a user, I want to export the full comparison as a PNG and share a public link so I can post it to forums.",
+    ],
+    checks: [
+      { text: "Results page sticky sidebar nav: Waveform · Spectrogram · Dynamic Range · Loudness · Frequency · Stereo · AI Verdict; smooth scroll on click", badge: "UI" },
+      { text: "Each section has a 'What does this mean?' tooltip explaining the chart in plain English for non-technical users", badge: "UX" },
+      { text: "Waveform: Recharts ComposedChart; one Line per version; click+drag zoom; synchronized zoom state shared with Loudness chart", badge: "Chart" },
+      { text: "Spectrogram: custom <SpectrogramCanvas> React component renders heatmap on HTML5 Canvas (not SVG)", badge: "Canvas" },
+      { text: "Spectrogram D3 overlay: log-scale Y-axis (Hz labels: 64, 128, 256, 512, 1k, 2k, 4k, 8k, 16k) and time X-axis as SVG atop Canvas", badge: "D3" },
+      { text: "Spectrogram hover: crosshair on mousemove fires across ALL sibling spectrograms at same time position", badge: "Interaction" },
+      { text: "Spectrogram tooltip: { time: '0:32', frequency: '2kHz', level: '-18dB' }", badge: "Interaction" },
+      { text: "Dynamic Range: horizontal bar chart; green ≥14dB, yellow 10–13dB, red <10dB; DR14/LUFS/True Peak toggle; benchmark lines; Winner badge", badge: "Chart" },
+      { text: "Loudness: smoothed RMS line chart; -23 LUFS and -14 LUFS reference lines; dynamic section bands overlaid", badge: "Chart" },
+      { text: "Frequency Response: log-scale X-axis 20Hz–20kHz; normalized to 0dB at 1kHz; frequency band markers; HF rolloff dashed lines per version", badge: "Chart" },
+      { text: "Stereo: Lissajous goniometer rendered in Canvas; phase correlation vertical gauge; plain-English interpretation text", badge: "Chart" },
+      { text: "Share: generates public URL; read-only view requires no auth; links expire after 30 days (shown at share time)", badge: "Feature" },
+      { text: "Export PNG: html2canvas generates composite image of all chart sections", badge: "Feature" },
+      { text: "Lighthouse performance score ≥ 80 on results page; all charts have aria-labels; keyboard navigable", badge: "Quality" },
+      { text: "Mobile responsive: charts stack vertically; spectrogram scrolls horizontally; sidebar nav collapses to top tabs", badge: "Responsive" },
+    ],
+    dod: [
+      "All charts render correctly with real API data from Sprint 2",
+      "Spectrogram Canvas renders 256×500 matrix without frame drops (measured with browser Performance tab)",
+      "Synchronized crosshair works across all 3 spectrogram panels simultaneously",
+      "Component tests written for every chart component (React Testing Library)",
+      "Share URL correctly renders read-only results page without authentication",
+    ]
+  },
+  {
+    num: "Sprint 04",
+    title: "AI Analysis Engine",
+    duration: "Weeks 8–9",
+    tag: "AI · Prompt Engineering",
+    what: "Integrate the Anthropic Claude API to analyze computed metrics and generate a human-readable expert verdict with a clear recommendation. The key engineering challenge is structured output from an LLM — prompting Claude to return Pydantic-validated JSON that drives UI components, not freeform prose. This is a skill almost no candidate has yet, and explaining your approach to prompt versioning, schema validation, and cost control will impress any interviewer.",
+    concepts: ["Structured LLM Outputs", "Pydantic Schema Validation", "Streaming API Responses", "Prompt Versioning", "Token Budget Management", "Graceful AI Degradation", "Rate Limiting with Redis"],
+    stories: [
+      "As a casual user, I want an AI to tell me which version is best in plain English so I don't need to interpret technical charts.",
+      "As a user, I want to see the AI verdict appear word-by-word as it generates so the wait feels interactive rather than stalled.",
+      "As an expert user, I want the AI verdict to cite specific metric values so I can verify its reasoning against the charts.",
+      "As a developer, I want the AI verdict stored in the database after generation so the same analysis never calls Claude twice.",
+    ],
+    checks: [
+      { text: "Celery job final stage: all computed metrics passed as structured JSON input to Claude after analysis completes", badge: "Pipeline" },
+      { text: "System prompt: instructs Claude to act as expert mastering engineer, return only valid JSON, cite specific metric values", badge: "Prompt" },
+      { text: "Output schema validated by Pydantic: winner_label, confidence, summary, per-version scores/strengths/weaknesses/best_for, metric interpretations", badge: "Schema" },
+      { text: "Invalid or malformed LLM output triggers automatic retry (max 2 retries) before marking as ai_failed", badge: "Resilience" },
+      { text: "Claude API called with stream=True; tokens forwarded through FastAPI StreamingResponse to browser", badge: "Streaming" },
+      { text: "Frontend renders streaming tokens progressively; 'AI is thinking…' spinner shown until first token arrives", badge: "Frontend" },
+      { text: "Full verdict stored in ai_verdicts table once streaming completes — never regenerated for same analysis_id", badge: "Caching" },
+      { text: "Prompt templates versioned in backend/app/prompts/ as .txt files; ai_verdicts table stores prompt_version, model_used, input_tokens, output_tokens", badge: "Versioning" },
+      { text: "Rate limiting via slowapi: max 5 AI analyses per IP per hour; max 20 per authenticated user per day (tracked in Redis)", badge: "Rate Limit" },
+      { text: "Token budgeting: metric summaries truncated if input would exceed 3,000 tokens", badge: "Cost Control" },
+      { text: "Graceful degradation: if Claude API unavailable, analysis completes successfully with status ai_unavailable (no hard failure)", badge: "Resilience" },
+      { text: "AI Verdict UI: Winner card with score; per-version cards with strengths (✓) and weaknesses (✗); expandable metric explanations", badge: "UI" },
+      { text: "Disclaimer shown: 'AI analysis is a starting point — see the charts for the full data'", badge: "UX" },
+    ],
+    dod: [
+      "AI verdict generates successfully end-to-end for a 3-file comparison",
+      "Pydantic validation tested: mocked malformed LLM output → retry → valid output accepted",
+      "Streaming display verified in browser (tokens appear progressively)",
+      "Rate limiting confirmed: 6th request within an hour returns 429 with retry_after_seconds",
+      "Graceful degradation confirmed: Claude API unavailable → analysis still shows all charts, AI section shows 'unavailable' state",
+    ]
+  },
+  {
+    num: "Sprint 05",
+    title: "Authentication & User Accounts",
+    duration: "Weeks 10–11",
+    tag: "Backend · Auth · Security",
+    what: "Add user registration, login, JWT authentication, refresh token rotation, and a personal analysis history dashboard. This sprint covers every auth pattern that comes up in SWE interviews: stateless JWT, HttpOnly cookie refresh tokens, bcrypt password hashing, OAuth2 authorization code flow, and role-based route protection. The token strategy — short-lived access token in memory, long-lived refresh in HttpOnly cookie — is the industry standard; be ready to explain it on a whiteboard.",
+    concepts: ["JWT Stateless Authentication", "Refresh Token Rotation", "bcrypt One-Way Hashing", "HttpOnly Cookie Security", "OAuth2 Authorization Code Flow", "FastAPI Dependency Injection for Auth", "Cursor-Based Pagination", "Brute Force Protection"],
+    stories: [
+      "As a new user, I want to register with email and password so my analyses are saved to my profile.",
+      "As a user, I want to sign in with Google so I don't have to create another password.",
+      "As a user, I want a dashboard showing all my past analyses so I can revisit and share previous comparisons.",
+      "As an unauthenticated user, I want to use the app without signing up so I can try it before committing.",
+    ],
+    checks: [
+      { text: "POST /auth/register and POST /auth/login return access token (JWT, 15min TTL) + refresh token (JWT, 7day TTL)", badge: "Auth" },
+      { text: "POST /auth/refresh exchanges refresh token for new access token; implements rotation (old token invalidated)", badge: "Auth" },
+      { text: "POST /auth/logout adds refresh token to Redis blacklist with matching TTL", badge: "Auth" },
+      { text: "Access token stored in Zustand memory state (NOT localStorage — XSS risk); refresh token in HttpOnly cookie", badge: "Security" },
+      { text: "Passwords hashed with bcrypt (cost factor 12); plaintext never logged or stored at any stage", badge: "Security" },
+      { text: "Brute force protection: max 10 login attempts per IP per 15 minutes via slowapi; 429 returned with retry_after_seconds", badge: "Security" },
+      { text: "FastAPI Depends(get_current_user) dependency used on all protected endpoints; returns 401 on invalid/expired token", badge: "Auth" },
+      { text: "Google OAuth via authlib: authorization code flow; first-time login auto-creates user account", badge: "OAuth" },
+      { text: "React Router protected routes redirect to /login if no valid access token; returnTo param preserves intended destination", badge: "Frontend" },
+      { text: "Unauthenticated users can upload and analyze (anonymous analyses); results shown with 'Sign up to save this' prompt", badge: "UX" },
+      { text: "GET /analyses returns user's history with cursor-based pagination (more scalable than page-number approach)", badge: "API" },
+      { text: "Dashboard shows: analysis title, versions compared, date, status; soft-delete and inline rename supported", badge: "Feature" },
+      { text: "Analyses are private by default; owner can toggle to public; public analyses accessible via share URL without auth", badge: "Privacy" },
+    ],
+    dod: [
+      "Full auth flow verified end-to-end: register → login → access protected route → token refresh → logout",
+      "Tampered JWT correctly rejected with 401; expired access token triggers refresh flow automatically",
+      "Refresh token confirmed in HttpOnly cookie via browser DevTools (not visible to JavaScript)",
+      "Brute force test: 10 failed logins → 429 returned; 11th attempt blocked",
+      "Cursor-based pagination returns consistent results under concurrent insertions",
+      "Unit tests: token generation, token verification, bcrypt hashing, refresh rotation",
+    ]
+  },
+  {
+    num: "Sprint 06",
+    title: "Performance, Testing & Hardening",
+    duration: "Weeks 12–13",
+    tag: "QA · Infra · Testing Pyramid",
+    what: "Make the application production-ready. This is the sprint that separates junior from senior engineers. You'll fix N+1 database queries, enforce Redis caching, build a full testing pyramid (unit → integration → E2E), add structured JSON logging, integrate Sentry error tracking, and run a Locust load test to document performance characteristics. The load test results in PERFORMANCE.md become a concrete talking point in every interview about system scalability.",
+    concepts: ["Testing Pyramid (Unit/Integration/E2E)", "Database Indexing & EXPLAIN ANALYZE", "N+1 Query Problem & joinedload Fix", "Redis Cache-Aside Pattern", "Structured Logging with structlog", "Load Testing with Locust", "Code Coverage Enforcement", "Playwright End-to-End Testing"],
+    stories: [
+      "As a developer, I want to identify and fix slow database queries so the API stays fast under real user load.",
+      "As a developer, I want ≥80% backend test coverage enforced in CI so regressions are caught before they reach production.",
+      "As a developer, I want Playwright E2E tests covering the full user journey so I know the happy path works end-to-end.",
+      "As a developer, I want structured JSON logs and Sentry error tracking so I can diagnose production issues within minutes.",
+    ],
+    checks: [
+      { text: "Database indexes added: audio_files.analysis_id, jobs.analysis_id, analyses.user_id, analyses.created_at DESC", badge: "DB" },
+      { text: "N+1 query identified and fixed using SQLAlchemy selectinload on analysis → audio_files relationship", badge: "DB" },
+      { text: "EXPLAIN ANALYZE output for 3 most-called queries documented in ARCHITECTURE.md", badge: "DB" },
+      { text: "GET /analyses responds in <100ms for user with 100 analyses (measured with pytest-benchmark)", badge: "Performance" },
+      { text: "Redis cache-aside: analysis results cached on first fetch; X-Cache: HIT|MISS header on responses", badge: "Caching" },
+      { text: "GET /analyses/{id}/results: <20ms on cache hit, <200ms on DB miss (measured and documented)", badge: "Performance" },
+      { text: "Backend pytest: unit tests for all audio algorithms, JWT logic, rate limiting, file validation; Claude API mocked in CI", badge: "Testing" },
+      { text: "Backend pytest: integration tests for full upload → process → results flow using real audio files against test DB", badge: "Testing" },
+      { text: "Backend coverage ≥80% enforced: pytest --cov with --cov-fail-under=80 in GitHub Actions (build fails below threshold)", badge: "Coverage" },
+      { text: "Frontend Vitest: component tests for all 6 chart components; hook tests for file upload and WebSocket reconnect logic", badge: "Testing" },
+      { text: "Frontend coverage ≥70% enforced in CI", badge: "Coverage" },
+      { text: "Playwright E2E (3 scenarios): upload+analyze flow, login+dashboard+results flow, unauthenticated share URL access", badge: "E2E" },
+      { text: "E2E tests run against local docker-compose stack in GitHub Actions CI", badge: "CI" },
+      { text: "All backend logs in JSON format via structlog; every request logs method, path, status, duration_ms, user_id", badge: "Observability" },
+      { text: "Global FastAPI exception handler catches all unhandled errors; responses always { error, code } — no raw tracebacks to client", badge: "Security" },
+      { text: "Sentry (free tier) integrated for production error tracking; Celery task failures captured with full traceback", badge: "Monitoring" },
+      { text: "Locust load test: 20 concurrent users; p95 latency <2s; results documented in PERFORMANCE.md", badge: "Load Test" },
+      { text: "API rate limiting: 100 req/min per IP; 10 analyses/day anonymous; 50/day authenticated; X-RateLimit-* headers returned", badge: "Rate Limit" },
+    ],
+    dod: [
+      "Backend coverage ≥80%, frontend coverage ≥70% — both enforced in CI (build fails if below threshold)",
+      "All Playwright E2E tests pass against a clean docker-compose stack",
+      "Load test results documented: RPS sustained, p95 latency, error rate under 20 concurrent users",
+      "Zero 500 errors on all happy-path flows in integration tests",
+      "Zero unhandled promise rejections in frontend browser console during E2E runs",
+    ]
+  },
+  {
+    num: "Sprint 07",
+    title: "Deployment & Portfolio Presentation",
+    duration: "Week 14",
+    tag: "DevOps · Launch · Portfolio",
+    what: "Deploy the application to free production infrastructure and create everything needed to present this project in a job application or interview. The live URL, the architecture diagram, the PERFORMANCE.md with real numbers, and the portfolio write-up are what transform this from a class project into a portfolio centrepiece. Every recruiter who clicks your GitHub will see a professional README, meaningful commit history, and a live demo.",
+    concepts: ["Multi-Stage Docker Production Builds", "CD Pipeline with GitHub Actions", "Preview Deployment Pattern", "Architecture Documentation", "Observability in Production"],
+    stories: [
+      "As a developer, I want the app deployed and publicly accessible so I can link to a live demo in my portfolio and job applications.",
+      "As a developer, I want deployment automated through GitHub Actions so every merge to main ships to production without manual steps.",
+      "As a recruiter, I want to see a pre-loaded example comparison on the landing page so I can evaluate the product in under 30 seconds.",
+      "As an interviewer, I want clear architecture documentation so I can evaluate the candidate's system design thinking.",
+    ],
+    checks: [
+      { text: "Frontend deployed to Vercel (free): spektr.vercel.app; auto-deploys on push to main", badge: "Deploy" },
+      { text: "Backend deployed to Render (free tier): api.spektr.onrender.com; Dockerfile build used", badge: "Deploy" },
+      { text: "Database: Supabase Postgres free tier; Redis: Upstash free tier (10k commands/day); Storage: Supabase (1GB free)", badge: "Infra" },
+      { text: "All production secrets in Vercel/Render environment variables — zero secrets in codebase at any point in git history", badge: "Security" },
+      { text: "GitHub Actions CD: push to main → run CI → build Docker image → deploy to Render (zero manual steps)", badge: "CI/CD" },
+      { text: "Every PR generates a unique Vercel preview URL for reviewing frontend changes before merge", badge: "CI/CD" },
+      { text: "docker-compose.prod.yml uses multi-stage Dockerfiles; production images confirmed <200MB", badge: "Docker" },
+      { text: "Demo analysis pre-loaded with 3 Creative Commons song versions; 'View Demo' button on landing page; protected from deletion", badge: "Demo" },
+      { text: "README.md: project overview, tech stack table, local setup, architecture diagram (Mermaid)", badge: "Docs" },
+      { text: "ARCHITECTURE.md: system design diagram with all components, data flow narrative, design decisions and their tradeoffs", badge: "Docs" },
+      { text: "PERFORMANCE.md: load test results (RPS, p95 latency), DB index improvements (before/after query times), cache hit rate", badge: "Docs" },
+      { text: "Commit history follows Conventional Commits (feat:, fix:, perf:, test:, docs:) — presentable to interviewers", badge: "Quality" },
+      { text: "GitHub repo is public; no debug code, no TODO comments, no .env files anywhere in git history", badge: "Quality" },
+      { text: "Demo loads in under 3 seconds cold start (Render free tier has sleep delay — confirm with warm-up ping)", badge: "Performance" },
+    ],
+    dod: [
+      "Live URL works and is shareable with a stranger — demo analysis visible without sign-up",
+      "GitHub Actions CD pipeline deploys successfully end-to-end on merge to main",
+      "README enables a stranger to run locally in under 10 minutes",
+      "ARCHITECTURE.md contains a complete system diagram readable by a non-contributor",
+      "PERFORMANCE.md contains real measured numbers (not estimates)",
+    ]
+  }
+];
+
+function buildSprints() {
+  const container = document.getElementById('sprints-container');
+  SPRINTS.forEach((sprint, si) => {
+    const el = document.createElement('div');
+    el.className = 'sprint';
+    el.dataset.index = si;
+
+    const checks = sprint.checks.map((c, ci) => `
+      <li class="check-item" data-sprint="${si}" data-check="${ci}" onclick="toggleCheck(${si},${ci})">
+        <div class="check-box">✓</div>
+        <div class="check-text">${c.text}</div>
+        <div class="stack-badge">${c.badge}</div>
+      </li>
+    `).join('');
+
+    const stories = sprint.stories.map(s => `<div class="story">"${s}"</div>`).join('');
+
+    const concepts = sprint.concepts.map(c => `<span class="concept-pill">${c}</span>`).join('');
+
+    const dodItems = sprint.dod.map(d => `<li>${d}</li>`).join('');
+
+    el.innerHTML = `
+      <div class="sprint-header" onclick="toggleSprint(${si})">
+        <div class="sprint-num">${sprint.num}<br><span style="color:var(--muted);font-size:9px">${sprint.duration}</span></div>
+        <div class="sprint-title-block">
+          <div class="sprint-title">${sprint.title}</div>
+          <div class="sprint-tag" id="tag-${si}">${sprint.tag}</div>
+        </div>
+        <div class="sprint-check-count" id="count-${si}">0/${sprint.checks.length}</div>
+        <div class="chevron">▶</div>
+      </div>
+      <div class="sprint-body">
+        <div class="what-block">
+          <strong>What this sprint delivers</strong>
+          ${sprint.what}
+        </div>
+        <div class="concepts-block">
+          <strong>CS Concepts Introduced</strong>
+          ${concepts}
+        </div>
+        <div class="section-label">User Stories</div>
+        <div class="story-list">${stories}</div>
+        <div class="section-label">Definition of Done — Checklist</div>
+        <ul class="check-list">${checks}</ul>
+        <div class="dod-block">
+          <strong>Sprint Complete When…</strong>
+          <ul>${dodItems}</ul>
+        </div>
+      </div>
+    `;
+    container.appendChild(el);
+  });
+  updateGlobalProgress();
+}
+
+function toggleSprint(si) {
+  const el = document.querySelector(`.sprint[data-index="${si}"]`);
+  el.classList.toggle('open');
+  el.classList.toggle('active', el.classList.contains('open'));
+}
+
+function toggleCheck(si, ci) {
+  const item = document.querySelector(`.check-item[data-sprint="${si}"][data-check="${ci}"]`);
+  item.classList.toggle('done');
+  updateSprintCount(si);
+  updateGlobalProgress();
+}
+
+function updateSprintCount(si) {
+  const sprint = SPRINTS[si];
+  const done = document.querySelectorAll(`.check-item[data-sprint="${si}"].done`).length;
+  const total = sprint.checks.length;
+  document.getElementById(`count-${si}`).textContent = `${done}/${total}`;
+  const el = document.querySelector(`.sprint[data-index="${si}"]`);
+  if (done === total) {
+    el.classList.add('completed');
+    document.getElementById(`tag-${si}`).textContent = '✓ Complete';
+  } else {
+    el.classList.remove('completed');
+    document.getElementById(`tag-${si}`).textContent = sprint.tag;
+  }
+}
+
+function updateGlobalProgress() {
+  const allItems = document.querySelectorAll('.check-item');
+  const doneItems = document.querySelectorAll('.check-item.done');
+  const total = allItems.length;
+  const done = doneItems.length;
+  const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+  document.getElementById('globalBar').style.width = pct + '%';
+  document.getElementById('globalLabel').textContent = `${done} / ${total} tasks complete · ${pct}%`;
+}
+
+buildSprints();
+document.querySelector('.sprint[data-index="0"]').classList.add('open','active');
+</script>
