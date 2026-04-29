@@ -7,7 +7,7 @@ FROM python:3.12-slim AS runner
 WORKDIR /app
 COPY --from=builder /install /usr/local
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libmagic1 \
+    && apt-get install -y --no-install-recommends libmagic1 libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 COPY . .
 RUN chmod +x start.sh

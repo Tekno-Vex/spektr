@@ -1,3 +1,4 @@
+import json
 import os
 import uuid
 
@@ -9,6 +10,7 @@ from app.base import SessionLocal
 from app.models.models import Analysis, AudioFile, Job
 from app.services.storage import upload_file
 from app.tasks import process_analysis
+import redis as sync_redis
 
 router = APIRouter(tags=["analyses"])
 
@@ -126,3 +128,39 @@ def get_status(analysis_id: int, db: Session = Depends(get_db)):
     if not job:
         raise HTTPException(status_code=404, detail="No job found for this analysis")
     return {"job_id": job.id, "status": job.status, "error_msg": job.error_msg}
+
+@router.get("/analyses/{analysis_id}/results", summary="Get analysis results")
+def get_results(analysis_id: int, db: Session = Depends(get_db)):
+    # Try Redis cache first (fast)
+    r = sync_redis.from_url(os.getenv("REDIS_URL", "redis://redis:6379"))
+    cache_key = f"results:{analysis_id}"
+    cached = r.get(cache_key)
+    r.close()
+
+    if cached:
+        return {"source": "cache", "results": json.loads(cached)}
+
+    # Fallback: query the database
+    from app.models.models import AnalysisResult
+    rows = (
+        db.query(AnalysisResult)
+        .filter(AnalysisResult.analysis_id == analysis_id)
+        .all()
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="No results yet for this analysis")
+
+    results = [
+        {
+            "audio_file_id": row.audio_file_id,
+            "waveform": row.waveform,
+            "spectrogram": row.spectrogram,
+            "loudness": row.loudness,
+            "frequency": row.frequency,
+            "rms_curve": row.rms_curve,
+            "stereo": row.stereo,
+            "sections": row.sections,
+        }
+        for row in rows
+    ]
+    return {"source": "db", "results": results}
