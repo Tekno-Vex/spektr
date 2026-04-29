@@ -47,3 +47,18 @@ class AnalysisResult(Base):
     stereo = Column(JSON, nullable=True)        # mid/side, correlation
     sections = Column(JSON, nullable=True)      # dynamic sections (quiet/loud/peak)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class AiVerdict(Base):
+    __tablename__ = "ai_verdicts"
+    id = Column(Integer, primary_key=True)
+    analysis_id = Column(Integer, ForeignKey("analyses.id"), nullable=False, unique=True)
+    winner_label = Column(String, nullable=True)
+    confidence = Column(String, nullable=True)
+    summary = Column(Text, nullable=True)
+    per_version = Column(JSON, nullable=True)
+    metric_interpretations = Column(JSON, nullable=True)
+    prompt_version = Column(String, nullable=True)
+    model_used = Column(String, nullable=True)
+    output_length = Column(Integer, nullable=True)
+    status = Column(String, default="pending")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

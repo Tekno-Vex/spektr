@@ -4,6 +4,7 @@ import uuid
 
 import magic
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.base import SessionLocal
@@ -164,3 +165,84 @@ def get_results(analysis_id: int, db: Session = Depends(get_db)):
         for row in rows
     ]
     return {"source": "db", "results": results}
+
+
+@router.get("/analyses/{analysis_id}/verdict", summary="Get AI verdict for an analysis")
+def get_verdict(analysis_id: int, db: Session = Depends(get_db)):
+    from app.models.models import AiVerdict
+    row = (
+        db.query(AiVerdict)
+        .filter(AiVerdict.analysis_id == analysis_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="No AI verdict found for this analysis")
+    if row.status != "completed":
+        raise HTTPException(status_code=404, detail=f"AI verdict status: {row.status}")
+    return {
+        "status": row.status,
+        "winner_label": row.winner_label,
+        "confidence": row.confidence,
+        "summary": row.summary,
+        "per_version": row.per_version,
+        "metric_interpretations": row.metric_interpretations,
+        "model_used": row.model_used,
+        "prompt_version": row.prompt_version,
+    }
+
+
+@router.get("/analyses/{analysis_id}/verdict/stream", summary="Stream AI verdict generation")
+def stream_verdict(analysis_id: int, db: Session = Depends(get_db)):
+    from app.models.models import AiVerdict, AnalysisResult, AudioFile
+    from app.services.ai import stream_verdict_tokens
+
+    # If verdict already exists and is completed, return it immediately as a single chunk
+    existing = (
+        db.query(AiVerdict)
+        .filter(AiVerdict.analysis_id == analysis_id)
+        .first()
+    )
+    if existing and existing.status == "completed" and existing.summary:
+        payload = json.dumps({
+            "winner_label": existing.winner_label,
+            "confidence": existing.confidence,
+            "summary": existing.summary,
+            "per_version": existing.per_version,
+            "metric_interpretations": existing.metric_interpretations,
+        })
+        return StreamingResponse(iter([payload]), media_type="text/plain")
+
+    # Otherwise stream live from Gemini
+    rows = (
+        db.query(AnalysisResult)
+        .filter(AnalysisResult.analysis_id == analysis_id)
+        .all()
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="No results found for this analysis")
+
+    audio_files = (
+        db.query(AudioFile)
+        .filter(AudioFile.analysis_id == analysis_id)
+        .all()
+    )
+    labels = [str(af.label or f"File {i + 1}") for i, af in enumerate(audio_files)]
+    results = [
+        {
+            "loudness": row.loudness,
+            "stereo": row.stereo,
+            "frequency": row.frequency,
+            "spectrogram": row.spectrogram,
+            "sections": row.sections,
+        }
+        for row in rows
+    ]
+
+    def token_generator():
+        try:
+            for chunk in stream_verdict_tokens(results, labels):
+                yield chunk
+        except Exception as e:
+            yield f"[AI unavailable: {e}]"
+
+    return StreamingResponse(token_generator(), media_type="text/plain")

@@ -9,6 +9,7 @@ import { FrequencyChart } from './FrequencyChart'
 import { LoudnessCard } from './LoudnessCard'
 import { StereoCard } from './StereoCard'
 import { SectionsTimeline } from './SectionsTimeline'
+import { AiVerdictCard } from './AiVerdictCard'
 
 const API = 'http://localhost:8000'
 
@@ -21,6 +22,7 @@ const NAV_SECTIONS = [
   { id: 'frequency',   label: 'Frequency' },
   { id: 'stereo',      label: 'Stereo' },
   { id: 'sections',    label: 'Sections' },
+  { id: 'ai',          label: 'AI Verdict' },
 ]
 
 const SECTION_HELP: Record<string, string> = {
@@ -30,6 +32,7 @@ const SECTION_HELP: Record<string, string> = {
   frequency: 'Shows how much energy is in each frequency range, normalized to 0 dB at 1 kHz. A dip or peak compared to another version reveals EQ differences between masters.',
   stereo: 'The goniometer (circle) shows how wide the stereo image is. A thin vertical line = mono. A wide diagonal cloud = wide stereo. Negative correlation (tilting left) can cause problems on mono speakers.',
   sections: 'Divides the track into quiet, loud, and peak regions based on RMS energy. Useful for spotting dynamic compression — if everything is "peak", the mix has no breathing room.',
+  ai: 'Google Gemini 2.5 Flash analyses the computed metrics and identifies the best version in plain English, citing specific numbers. It is a starting point — always compare with the charts above.',
 }
 
 export function ResultsPage() {
@@ -275,6 +278,11 @@ export function ResultsPage() {
               label={`File ${i + 1}`}
             />
           ))}
+        </Section>
+
+        {/* ── AI Verdict ── */}
+        <Section id="ai" label="AI Verdict" help={SECTION_HELP.ai} refMap={sectionRefs}>
+          <AiVerdictCard analysisId={analysisId ?? ''} />
         </Section>
       </main>
     </div>
