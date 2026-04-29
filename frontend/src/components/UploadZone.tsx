@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
-import { useDropzone, FileRejection } from 'react-dropzone'
+import type { FileRejection } from 'react-dropzone'
+import { useDropzone } from 'react-dropzone'
 import axios from 'axios'
 
 const API = 'http://localhost:8000'

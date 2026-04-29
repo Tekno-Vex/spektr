@@ -228,7 +228,9 @@ Single component that owns the full upload-and-process flow:
 
 **Type note:** Always import `FileRejection` from `react-dropzone` for the `onDrop`
 callback's second parameter — do not inline a custom type, because `errors` is
-`readonly FileError[]` in the library.
+`readonly FileError[]` in the library. With `verbatimModuleSyntax` on, use
+`import type { FileRejection } from 'react-dropzone'` and keep `useDropzone` as a
+value import on a separate line.
 
 ### Vite / Vitest config
 `vite.config.ts` imports `defineConfig` from **`vitest/config`**, not from `vite`.
