@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useCallback, useState } from 'react'
 import type { FileRejection } from 'react-dropzone'
 import { useDropzone } from 'react-dropzone'
@@ -40,6 +41,7 @@ export function UploadZone() {
   const [analysisId, setAnalysisId] = useState<number | null>(null)
   const [wsEvent, setWsEvent] = useState<WsEvent | null>(null)
   const [phase, setPhase] = useState<'pick' | 'uploading' | 'processing' | 'done'>('pick')
+  const navigate = useNavigate()
 
   const updateEntry = (idx: number, patch: Partial<FileEntry>) =>
     setEntries(prev => prev.map((e, i) => (i === idx ? { ...e, ...patch } : e)))
@@ -77,6 +79,7 @@ export function UploadZone() {
       if (data.stage === 'Done') {
         setPhase('done')
         ws.close()
+        navigate(`/results/${id}`)
       }
     }
     ws.onerror = () => {
