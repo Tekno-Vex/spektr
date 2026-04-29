@@ -1,7 +1,7 @@
 # CLAUDE.md — Spektr Project Context
 
 This file documents every architectural decision, known quirk, and implementation detail
-accumulated across Sprint 0, Sprint 1, Sprint 2, and Sprint 3. Read this before making any changes.
+accumulated across Sprint 0, Sprint 1, Sprint 2, Sprint 3, and Sprint 4. Read this before making any changes.
 
 ---
 
@@ -24,11 +24,14 @@ spektr/
 │   ├── app/
 │   │   ├── api/analyses.py        # All REST endpoints
 │   │   ├── models/models.py       # SQLAlchemy ORM models (classic Column style)
+│   │   ├── prompts/               # Versioned LLM prompts (Sprint 4)
+│   │   │   └── verdict_v1.txt     # Structured JSON verdict prompt template
 │   │   ├── services/
 │   │   │   ├── audio.py           # DSP algorithms (librosa / numpy / scipy)
 │   │   │   ├── celery_app.py      # Celery instance
 │   │   │   ├── downloader.py      # Download from Supabase Storage via httpx
-│   │   │   └── storage.py         # Upload to Supabase Storage via httpx
+│   │   │   ├── storage.py         # Upload to Supabase Storage via httpx
+│   │   │   └── ai.py              # Gemini integration + Pydantic validation
 │   │   ├── base.py                # SQLAlchemy engine + SessionLocal
 │   │   └── main.py                # FastAPI app, CORS, WebSocket endpoint
 │   ├── tests/
@@ -48,7 +51,8 @@ spektr/
 │   │   │   ├── FrequencyChart.tsx      # Recharts frequency response + bands
 │   │   │   ├── LoudnessCard.tsx        # DR bar, RMS curve, LUFS refs, winner badge
 │   │   │   ├── StereoCard.tsx          # Gauges + canvas goniometer
-│   │   │   └── SectionsTimeline.tsx    # Quiet/loud/peak timeline
+│   │   │   ├── SectionsTimeline.tsx    # Quiet/loud/peak timeline
+│   │   │   └── AiVerdictCard.tsx       # Sprint 4 AI verdict UI
 │   │   ├── types.ts                    # Shared frontend result interfaces
 │   │   ├── App.tsx
 │   │   └── App.test.tsx
@@ -88,6 +92,7 @@ REDIS_URL=redis://redis:6379
 SUPABASE_URL=https://<project-id>.supabase.co
 SUPABASE_KEY=<service-role-key>
 SUPABASE_BUCKET=analyses
+GEMINI_API_KEY=<google-ai-studio-key>
 ```
 
 `DATABASE_URL` uses the Docker Compose service name `postgres` — not `localhost`.
@@ -107,6 +112,8 @@ All endpoints are prefixed `/api/v1`.
 | POST   | `/analyses/{id}/process`          | Enqueue Celery processing job               |
 | GET    | `/analyses/{id}/status`           | Latest job status (pending/processing/done) |
 | GET    | `/analyses/{id}/results`          | Fetch analysis results (Redis cache or DB)  |
+| GET    | `/analyses/{id}/verdict`          | Fetch stored AI verdict from DB              |
+| GET    | `/analyses/{id}/verdict/stream`   | Stream AI verdict tokens / return cached JSON |
 | GET    | `/health`                         | Health check                                |
 | WS     | `/ws/analyses/{id}`               | Real-time processing progress via Pub/Sub   |
 
@@ -123,8 +130,8 @@ All endpoints are prefixed `/api/v1`.
 
 ### Migrations chain
 ```
-1f35ee457180  →  b2f3e8a1c9d4  →  9e87bf669ba7  →  c3a1f2e8d7b5
-(initial)        (mime_type)       (analysis_results)  (rms_curve)
+1f35ee457180  →  b2f3e8a1c9d4  →  9e87bf669ba7  →  c3a1f2e8d7b5  →  0f7abee2e7e0
+(initial)        (mime_type)       (analysis_results)  (rms_curve)    (ai_verdicts)
 ```
 
 Always create a new migration file manually or via `alembic revision --autogenerate`
@@ -139,6 +146,9 @@ when adding columns. Never edit existing migration files.
 - **AnalysisResult** — `id, analysis_id, audio_file_id, waveform, spectrogram,
   loudness, frequency, rms_curve, stereo, sections, created_at`
   (all analysis columns are JSON / nullable)
+- **AiVerdict** — `id, analysis_id(unique), winner_label, confidence, summary,
+  per_version(JSON), metric_interpretations(JSON), prompt_version, model_used,
+  output_length, status, created_at`
 
 **mypy note:** The classic `Column` style makes mypy report `Column[str]` for attribute
 assignments (e.g. `job.status = "done"`). Suppress with `# type: ignore[assignment]`.
@@ -175,6 +185,9 @@ Progress stages published to Redis channel `analysis:{id}:progress`:
 On completion:
 - Results saved as JSON rows in `analysis_results` table
 - Full result list cached in Redis under key `results:{id}` for 24 hours
+- AI stage (`AI`) calls Gemini after per-file DSP is complete and stores one row in `ai_verdicts`
+  with `prompt_version='v1'` and `model_used='gemini-2.5-flash'`
+- On AI error, processing still completes; `AiVerdict.status` is set to `ai_failed`
 
 The `GET /analyses/{id}/results` endpoint checks Redis first; falls back to DB.
 
@@ -319,6 +332,75 @@ Sprint 3 adds a dedicated results route and a componentized visual dashboard.
 
 ---
 
+## Sprint 4 AI Analysis Engine
+
+Sprint 4 adds structured LLM output on top of the DSP pipeline.
+
+### Why Gemini + design choices
+- Gemini model used: `gemini-2.5-flash` via `google-generativeai`
+- Chosen for free-tier viability and streaming support
+- Output must be strict JSON (no prose) and is validated with Pydantic before storing
+- Prompt templates are versioned as text files under `backend/app/prompts/`
+
+### Backend AI service (`backend/app/services/ai.py`)
+- Loads prompt template from `prompts/verdict_v1.txt`
+- Exposes:
+  - `generate_verdict(results, labels)` for Celery (non-streaming, retried parsing/validation)
+  - `stream_verdict_tokens(results, labels)` for FastAPI `StreamingResponse`
+- Pydantic schema enforces:
+  - `winner_label`
+  - `confidence`
+  - `summary`
+  - `versions[]` (`label`, `score`, `strengths`, `weaknesses`, `best_for`)
+  - `metric_interpretations` (`dynamic_range`, `loudness`, `frequency`, `stereo`)
+- If JSON is malformed or schema-invalid, generation is retried up to 3 attempts
+
+### Task orchestration changes (`backend/app/tasks.py`)
+- `process_analysis` now performs:
+  1. DSP processing for each file
+  2. DB insert into `analysis_results`
+  3. Redis cache write (`results:{analysis_id}`)
+  4. AI stage publish (`stage='AI'`)
+  5. Verdict generation + write to `ai_verdicts`
+  6. Final publish (`stage='Done'`)
+- AI failures do not abort the entire analysis job; verdict row marked `ai_failed`
+
+### Verdict endpoints (`backend/app/api/analyses.py`)
+- `GET /analyses/{id}/verdict`
+  - Returns stored AI verdict when status is `completed`
+- `GET /analyses/{id}/verdict/stream`
+  - If verdict already exists and completed: returns full JSON payload immediately
+  - Else: streams Gemini token chunks to the browser
+  - On stream exception: emits a bracketed fallback message
+
+### Frontend AI UI (`frontend/src/components/AiVerdictCard.tsx`)
+- Tries `GET /verdict` first (fast path / cached result)
+- Falls back to `/verdict/stream` for live generation
+- Shows:
+  - "AI is thinking..." spinner
+  - winner card + confidence pill
+  - summary paragraph
+  - per-version score cards
+  - expandable strengths/weaknesses
+  - metric interpretation blocks
+  - disclaimer text
+
+### Results page integration (`frontend/src/components/ResultsPage.tsx`)
+- New sidebar section: `AI Verdict`
+- New helper text entry in `SECTION_HELP.ai`
+- New content block renders `<AiVerdictCard analysisId={analysisId ?? ''} />`
+
+### Sprint 4 dependencies
+- Backend runtime:
+  - `google-generativeai`
+
+### Known limits / current tradeoffs
+- No `slowapi` rate limiting is implemented yet (planned for hardening sprint)
+- Streaming endpoint currently returns `text/plain` chunks; frontend assembles and parses full JSON
+- Graceful degradation is implemented as status/message fallback, not a separate recovery queue
+
+---
+
 ## CI / GitHub Actions (`.github/workflows/ci.yml`)
 
 ### Backend job
@@ -362,4 +444,9 @@ cd frontend && npx tsc --noEmit
 
 # Frontend tests
 cd frontend && npm test
+
+# Rebuild frontend deps if Docker volume is stale (missing recharts/d3/html2canvas)
+docker-compose down
+docker-compose build --no-cache frontend
+docker-compose up
 ```
