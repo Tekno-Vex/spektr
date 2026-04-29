@@ -1,7 +1,7 @@
 # CLAUDE.md — Spektr Project Context
 
 This file documents every architectural decision, known quirk, and implementation detail
-accumulated across Sprint 0, Sprint 1, and Sprint 2. Read this before making any changes.
+accumulated across Sprint 0, Sprint 1, Sprint 2, and Sprint 3. Read this before making any changes.
 
 ---
 
@@ -40,7 +40,16 @@ spektr/
 │   └── start.sh                   # Runs migrations then uvicorn
 ├── frontend/
 │   ├── src/
-│   │   ├── components/UploadZone.tsx   # Main upload + progress UI
+│   │   ├── components/
+│   │   │   ├── UploadZone.tsx          # Upload flow + process trigger
+│   │   │   ├── ResultsPage.tsx         # Sprint 3 full results dashboard
+│   │   │   ├── SpectrogramCanvas.tsx   # Canvas renderer + D3 crosshair overlay
+│   │   │   ├── WaveformChart.tsx       # Recharts waveform bars
+│   │   │   ├── FrequencyChart.tsx      # Recharts frequency response + bands
+│   │   │   ├── LoudnessCard.tsx        # DR bar, RMS curve, LUFS refs, winner badge
+│   │   │   ├── StereoCard.tsx          # Gauges + canvas goniometer
+│   │   │   └── SectionsTimeline.tsx    # Quiet/loud/peak timeline
+│   │   ├── types.ts                    # Shared frontend result interfaces
 │   │   ├── App.tsx
 │   │   └── App.test.tsx
 │   ├── Dockerfile
@@ -225,6 +234,7 @@ Single component that owns the full upload-and-process flow:
 4. `POST /process` to enqueue the Celery job
 5. WebSocket connection to `/ws/analyses/{id}` with exponential back-off reconnect
    (up to 5 retries, max 30 s delay) to display live stage chips + overall progress bar
+6. On `Done`, auto-navigates to `/results/{analysisId}` for Sprint 3 dashboard view
 
 **Type note:** Always import `FileRejection` from `react-dropzone` for the `onDrop`
 callback's second parameter — do not inline a custom type, because `errors` is
@@ -239,6 +249,73 @@ The `test` block is a Vitest extension and the base `vite` types don't include i
 ### Windows / OneDrive workaround
 Vitest is configured with `pool: 'threads'` instead of the default `forks` to avoid
 file-locking errors that occur on Windows with OneDrive-synced directories.
+
+---
+
+## Sprint 3 Frontend Visualisation
+
+Sprint 3 adds a dedicated results route and a componentized visual dashboard.
+
+### Routing and page flow
+- `BrowserRouter` is wired in `frontend/src/main.tsx`
+- Routes in `frontend/src/App.tsx`:
+  - `/` -> `UploadZone`
+  - `/results/:analysisId` -> `ResultsPage`
+- `UploadZone` navigates automatically to results after WebSocket stage `Done`
+
+### Results page structure (`frontend/src/components/ResultsPage.tsx`)
+- Sticky left sidebar for section navigation: waveform, spectrogram, loudness, frequency, stereo, sections
+- Smooth scroll + active section highlight via `IntersectionObserver`
+- "What does this mean?" inline helper per section with plain-English interpretation text
+- Results fetched from `GET /api/v1/analyses/{id}/results`
+- "Winner" (most dynamic) computed client-side as highest `loudness.dr14`
+
+### Charts and widgets
+- `WaveformChart.tsx`
+  - Recharts `BarChart` for normalized waveform comparisons
+- `SpectrogramCanvas.tsx`
+  - Pixel-level heatmap rendering on `<canvas>` from `spectrogram.data`
+  - D3-powered crosshair lines drawn on transparent SVG overlay
+  - Hover tooltip with frequency + time
+  - HF rolloff badge from `spectrogram.hf_rolloff_hz`
+- `LoudnessCard.tsx`
+  - DR14 color-coded badge and horizontal DR bar
+  - DR8/DR14 benchmark ticks
+  - LUFS / true peak / crest factor metrics
+  - RMS curve mini-chart from `rms_curve`
+  - `-23` and `-14` LUFS dashed reference lines
+  - "Most Dynamic" winner badge for best DR among compared files
+- `FrequencyChart.tsx`
+  - Log-scaled frequency axis (20 Hz - 20 kHz)
+  - 0 dB reference line
+  - Frequency band marker lines (Sub/Bass/Low-mid/Mid/High/Air)
+  - HF rolloff dashed marker line per file
+- `StereoCard.tsx`
+  - Stereo width and correlation gauges
+  - Canvas Lissajous/goniometer plot from `mid_rms`/`side_rms`
+  - Plain-English stereo interpretation text
+- `SectionsTimeline.tsx`
+  - Color-coded quiet/loud/peak section bars
+
+### Share and export
+- Share button copies the current results URL to clipboard
+- Export button uses `html2canvas` to render and download full-page PNG
+- Current implementation is frontend-only share (URL copy). There is no backend tokenized
+  share-link system or expiry enforcement yet.
+
+### Mobile behavior
+- At small widths, sidebar is hidden
+- Main content padding is reduced
+- Spectrogram area is horizontally scrollable
+
+### Sprint 3 dependencies
+- Runtime:
+  - `react-router-dom`
+  - `recharts`
+  - `d3`
+  - `html2canvas`
+- Dev/types:
+  - `@types/d3`
 
 ---
 
