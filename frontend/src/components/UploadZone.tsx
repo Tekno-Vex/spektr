@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { useDropzone } from 'react-dropzone'
+import { useDropzone, FileRejection } from 'react-dropzone'
 import axios from 'axios'
 
 const API = 'http://localhost:8000'
@@ -44,7 +44,7 @@ export function UploadZone() {
     setEntries(prev => prev.map((e, i) => (i === idx ? { ...e, ...patch } : e)))
 
   const onDrop = useCallback(
-    (accepted: File[], rejected: { file: File; errors: { message: string }[] }[]) => {
+    (accepted: File[], rejected: FileRejection[]) => {
       setRejections(rejected.map(r => `${r.file.name}: ${r.errors[0]?.message}`))
       const next = accepted.slice(0, MAX_FILES - entries.length).map(f => ({
         file: f,

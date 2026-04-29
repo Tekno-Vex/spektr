@@ -35,7 +35,9 @@ def process_analysis(self, analysis_id: int, job_id: int):
 
     try:
         job = db.get(Job, job_id)
-        job.status = "processing"
+        if job is None:
+            raise ValueError(f"Job {job_id} not found")
+        job.status = "processing"  # type: ignore[assignment]
         db.commit()
 
         audio_files = (
@@ -48,7 +50,7 @@ def process_analysis(self, analysis_id: int, job_id: int):
 
         all_results = []
         for audio_file in audio_files:
-            data = download_file(audio_file.file_path)
+            data = download_file(str(audio_file.file_path))
 
             _publish(r, channel, "Waveform")
             result = analyse_file(data)
@@ -79,14 +81,15 @@ def process_analysis(self, analysis_id: int, job_id: int):
         r.setex(cache_key, 86400, json.dumps(all_results))
 
         _publish(r, channel, "Done")
-        job.status = "completed"
+        job.status = "completed"  # type: ignore[assignment]
         db.commit()
 
     except Exception as exc:
         job = db.get(Job, job_id)
-        job.status = "failed"
-        job.error_msg = str(exc)
-        db.commit()
+        if job is not None:
+            job.status = "failed"  # type: ignore[assignment]
+            job.error_msg = str(exc)  # type: ignore[assignment]
+            db.commit()
         raise self.retry(exc=exc, countdown=2 ** self.request.retries)
     finally:
         db.close()

@@ -2,14 +2,14 @@ import io
 import math
 import numpy as np
 import librosa
-import scipy.signal
+import scipy.signal  # type: ignore[import-untyped]
 
 SR_TARGET = 22050   # resample everything to this rate
 N_FFT = 2048
 HOP = 512
 
 
-def load_audio(data: bytes) -> tuple[np.ndarray, int]:
+def load_audio(data: bytes) -> tuple[np.ndarray, float]:
     """Load raw audio bytes into a numpy array at SR_TARGET."""
     y, sr = librosa.load(io.BytesIO(data), sr=SR_TARGET, mono=False)
     # y is shape (2, N) for stereo or (N,) for mono
@@ -77,14 +77,14 @@ def compute_spectrogram(y_mono: np.ndarray) -> dict:
 
 # ── 3. LOUDNESS (DR14) ─────────────────────────────────────────────────────────
 
-def compute_loudness(y_mono: np.ndarray, sr: int) -> dict:
+def compute_loudness(y_mono: np.ndarray, sr: float) -> dict:
     """
     DR14 Dynamic Range algorithm (industry standard for mastering engineers).
     Splits audio into 3-second blocks, computes RMS and peak per block,
     then: DR = avg_peak_dB - avg_rms_dB across all blocks.
     Also computes integrated LUFS (simplified), true peak dBTP, and crest factor.
     """
-    block_size = sr * 3
+    block_size = int(sr) * 3
     rms_blocks = []
     peak_blocks = []
 
@@ -125,7 +125,7 @@ def compute_loudness(y_mono: np.ndarray, sr: int) -> dict:
 
 # ── 4. FREQUENCY RESPONSE ──────────────────────────────────────────────────────
 
-def compute_frequency(y_mono: np.ndarray, sr: int) -> dict:
+def compute_frequency(y_mono: np.ndarray, sr: float) -> dict:
     """
     Welch's Power Spectral Density method.
     Much more stable than a single FFT snapshot — averages multiple overlapping
@@ -155,7 +155,7 @@ def compute_frequency(y_mono: np.ndarray, sr: int) -> dict:
 
 # ── 5. RMS LOUDNESS CURVE ─────────────────────────────────────────────────────
 
-def compute_rms_curve(y_mono: np.ndarray, sr: int) -> list[float]:
+def compute_rms_curve(y_mono: np.ndarray, sr: float) -> list[float]:
     """
     Short-time RMS in 20ms windows (frame-level loudness over time).
     Savitzky-Golay smoothed. Downsampled to 1000 points for transfer.
@@ -218,13 +218,13 @@ def compute_stereo(y: np.ndarray) -> dict:
 
 # ── 7. DYNAMIC SECTIONS ───────────────────────────────────────────────────────
 
-def compute_sections(y_mono: np.ndarray, sr: int) -> list[dict]:
+def compute_sections(y_mono: np.ndarray, sr: float) -> list[dict]:
     """
     Label regions as quiet / load / peak based on RMS threshold.
     Uses the RMS per 3-second block (same blocks as DR14).
     Returns a list of {start_sec, end_sec, label} dicts.
     """
-    block_size = sr * 3
+    block_size = int(sr) * 3
     sections = []
     rms_all = []
 
