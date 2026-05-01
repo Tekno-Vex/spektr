@@ -106,25 +106,24 @@ export function ResultsPage() {
 
   if (error) {
     return (
-      <div style={{ maxWidth: 640, margin: '80px auto', textAlign: 'center', fontFamily: 'sans-serif' }}>
-        <p style={{ color: '#f87171', fontSize: 16 }}>{error}</p>
-        <Link to="/" style={{ color: '#4f8ef7', fontSize: 14 }}>← Back to upload</Link>
+      <div style={{ maxWidth: 640, margin: '80px auto', textAlign: 'center', fontFamily: 'var(--font)', padding: '0 24px' }}>
+        <p style={{ color: 'var(--red)', fontSize: 15, marginBottom: 16 }}>{error}</p>
+        <Link to="/" style={{ color: 'var(--accent-2)', fontSize: 13 }}>← Back to upload</Link>
       </div>
     )
   }
 
   if (!results) {
     return (
-      <div style={{ maxWidth: 640, margin: '80px auto', textAlign: 'center', fontFamily: 'sans-serif' }}>
-        <p style={{ color: '#888' }}>Loading results…</p>
+      <div style={{ maxWidth: 640, margin: '80px auto', textAlign: 'center', fontFamily: 'var(--font)' }}>
+        <p style={{ color: 'var(--text-3)', fontSize: 14 }}>Loading results…</p>
       </div>
     )
   }
 
   return (
-    <div style={{ display: 'flex', fontFamily: 'sans-serif', minHeight: '100vh', background: '#0d0d0d', color: '#e5e5e5' }}>
+    <div style={{ display: 'flex', fontFamily: 'var(--font)', minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)' }}>
 
-      {/* ── Sticky sidebar (hidden on mobile via inline media trick) ── */}
       <style>{`
         @media (max-width: 640px) {
           .results-sidebar { display: none !important; }
@@ -134,76 +133,51 @@ export function ResultsPage() {
       `}</style>
 
       <nav className="results-sidebar" style={{
-        position: 'sticky',
-        top: 0,
-        height: '100vh',
-        width: 160,
-        flexShrink: 0,
-        padding: '32px 16px',
-        borderRight: '1px solid #222',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 4,
+        position: 'sticky', top: 0, height: '100vh', width: 172, flexShrink: 0,
+        padding: '28px 16px', borderRight: '1px solid var(--border)',
+        display: 'flex', flexDirection: 'column', gap: 2,
+        background: 'var(--bg-2)',
       }}>
-        <Link to="/" style={{ color: '#555', fontSize: 12, marginBottom: 20, textDecoration: 'none' }}>← Upload</Link>
+        <Link to="/" style={{ color: 'var(--text-3)', fontSize: 12, marginBottom: 24, display: 'flex', alignItems: 'center', gap: 5 }}>
+          ← Upload
+        </Link>
+        <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+          Sections
+        </p>
         {NAV_SECTIONS.map(s => (
-          <button
-            key={s.id}
-            onClick={() => scrollTo(s.id)}
-            aria-label={`Jump to ${s.label} section`}
-            style={{
-              background: 'none',
-              border: 'none',
-              textAlign: 'left',
-              color: activeSection === s.id ? '#4f8ef7' : '#666',
-              fontWeight: activeSection === s.id ? 600 : 400,
-              fontSize: 13,
-              cursor: 'pointer',
-              padding: '6px 0',
-              transition: 'color 0.2s',
-            }}
-          >
+          <button key={s.id} onClick={() => scrollTo(s.id)} aria-label={`Jump to ${s.label} section`} style={{
+            background: activeSection === s.id ? 'var(--accent-glow)' : 'none',
+            border: 'none', textAlign: 'left',
+            color: activeSection === s.id ? 'var(--accent-2)' : 'var(--text-3)',
+            fontWeight: activeSection === s.id ? 600 : 400,
+            fontSize: 13, cursor: 'pointer', padding: '7px 10px',
+            borderRadius: 6, transition: 'all 0.15s',
+          }}>
             {s.label}
           </button>
         ))}
 
-        {/* Share + Export in sidebar */}
-        <div style={{ marginTop: 'auto', paddingTop: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <button
-            onClick={handleShare}
-            aria-label="Share this analysis"
-            style={actionBtnStyle}
-          >
-            {shareMsg ?? 'Share link'}
+        <div style={{ marginTop: 'auto', paddingTop: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <button onClick={handleShare} aria-label="Share this analysis" style={actionBtnStyle}>
+            {shareMsg ?? '↗ Share'}
           </button>
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            aria-label="Export as PNG"
-            style={{ ...actionBtnStyle, opacity: exporting ? 0.5 : 1 }}
-          >
-            {exporting ? 'Exporting…' : 'Export PNG'}
+          <button onClick={handleExport} disabled={exporting} aria-label="Export as PNG" style={{ ...actionBtnStyle, opacity: exporting ? 0.5 : 1 }}>
+            {exporting ? 'Exporting…' : '↓ Export PNG'}
           </button>
         </div>
       </nav>
 
-      {/* ── Main content ── */}
-      <main ref={mainRef} className="results-main" style={{ flex: 1, padding: '32px 40px', maxWidth: 900 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 36 }}>
+      <main ref={mainRef} className="results-main" style={{ flex: 1, padding: '36px 44px', maxWidth: 920 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 40 }}>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Analysis #{analysisId}</h1>
-            <p style={{ color: '#555', fontSize: 13, margin: 0 }}>
+            <h1 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 5 }}>Analysis #{analysisId}</h1>
+            <p style={{ color: 'var(--text-3)', fontSize: 13, margin: 0 }}>
               {results.length} file{results.length !== 1 ? 's' : ''} compared
             </p>
           </div>
-          {/* Mobile action buttons (shown when sidebar hidden) */}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={handleShare} style={actionBtnStyle} aria-label="Share">
-              {shareMsg ?? 'Share'}
-            </button>
-            <button onClick={handleExport} disabled={exporting} style={actionBtnStyle} aria-label="Export PNG">
-              {exporting ? '…' : 'PNG'}
-            </button>
+            <button onClick={handleShare} style={actionBtnStyle} aria-label="Share">{shareMsg ?? 'Share'}</button>
+            <button onClick={handleExport} disabled={exporting} style={actionBtnStyle} aria-label="Export PNG">{exporting ? '…' : 'PNG'}</button>
           </div>
         </div>
 
@@ -290,14 +264,15 @@ export function ResultsPage() {
 }
 
 const actionBtnStyle: React.CSSProperties = {
-  background: '#1e1e1e',
-  border: '1px solid #333',
-  color: '#aaa',
+  background: 'var(--bg-3)',
+  border: '1px solid var(--border)',
+  color: 'var(--text-2)',
   fontSize: 11,
-  padding: '6px 10px',
+  padding: '7px 11px',
   borderRadius: 6,
   cursor: 'pointer',
   textAlign: 'center',
+  fontFamily: 'var(--font)',
 }
 
 function Section({
@@ -320,24 +295,20 @@ function Section({
       id={id}
       // eslint-disable-next-line react-hooks/immutability
       ref={el => { refMap.current[id] = el }}
-      style={{ marginBottom: 56 }}
+      style={{ marginBottom: 60 }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, borderBottom: '1px solid #222', paddingBottom: 8 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600, color: '#aaa', margin: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+        <h2 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-2)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           {label}
         </h2>
-        {/* "What does this mean?" toggle */}
         <button
           onClick={() => setShowHelp(v => !v)}
           aria-label={`What does the ${label} chart mean?`}
           style={{
-            background: 'none',
-            border: '1px solid #333',
-            color: '#555',
-            fontSize: 10,
-            padding: '2px 7px',
-            borderRadius: 10,
-            cursor: 'pointer',
+            background: 'none', border: '1px solid var(--border)',
+            color: 'var(--text-3)', fontSize: 10, width: 18, height: 18,
+            borderRadius: '50%', cursor: 'pointer', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font)',
           }}
         >
           ?
@@ -345,14 +316,10 @@ function Section({
       </div>
       {showHelp && (
         <div style={{
-          background: '#111',
-          border: '1px solid #2a2a2a',
-          borderRadius: 6,
-          padding: '10px 14px',
-          fontSize: 12,
-          color: '#888',
-          lineHeight: 1.6,
-          marginBottom: 12,
+          background: 'var(--bg-2)', border: '1px solid var(--border)',
+          borderRadius: 8, padding: '12px 16px', fontSize: 12,
+          color: 'var(--text-2)', lineHeight: 1.7, marginBottom: 16,
+          borderLeft: '3px solid var(--accent)',
         }}>
           {help}
         </div>
