@@ -11,7 +11,7 @@ import { StereoCard } from './StereoCard'
 import { SectionsTimeline } from './SectionsTimeline'
 import { AiVerdictCard } from './AiVerdictCard'
 
-const API = 'http://localhost:8000'
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
 const FILE_COLORS = ['#4f8ef7', '#f97316', '#a78bfa', '#34d399', '#f87171']
 

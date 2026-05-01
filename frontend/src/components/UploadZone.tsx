@@ -4,8 +4,8 @@ import type { FileRejection } from 'react-dropzone'
 import { useDropzone } from 'react-dropzone'
 import axios from 'axios'
 
-const API = 'http://localhost:8000'
-const WS_BASE = 'ws://localhost:8000'
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const WS_BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:8000').replace('https://', 'wss://').replace('http://', 'ws://')
 
 const ACCEPTED_TYPES = {
   'audio/mpeg': ['.mp3'],

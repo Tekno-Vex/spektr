@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { useAuth } from '../contexts/AuthContext'
 
-const API = 'http://localhost:8000/api/v1'
+const API = `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/v1`
 
 interface AnalysisItem {
   id: number
