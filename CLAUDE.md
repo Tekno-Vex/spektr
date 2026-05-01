@@ -1,7 +1,7 @@
 # CLAUDE.md — Spektr Project Context
 
 This file documents every architectural decision, known quirk, and implementation detail
-accumulated across Sprint 0, Sprint 1, Sprint 2, Sprint 3, Sprint 4, and Sprint 5. Read this before making any changes.
+accumulated across Sprint 0, Sprint 1, Sprint 2, Sprint 3, Sprint 4, Sprint 5, and Sprint 6. Read this before making any changes.
 
 ---
 
@@ -543,6 +543,125 @@ interface AuthContextValue {
 - Google OAuth / SSO not implemented (tagged "Bonus" in checklist)
 - Public share URL not implemented (is_public flag exists but no endpoint to toggle or fetch by token)
 - Soft-delete archive is implemented in schema but no frontend "Archive" button yet
+
+---
+
+## Sprint 6: Performance, Testing & Hardening
+
+Sprint 6 focuses on production readiness through database optimization, comprehensive testing, structured logging, and CI coverage enforcement.
+
+### Database Optimization
+
+**Indexes added to all major tables** (`models.py`):
+- `Analysis` table: `ix_analyses_user_id`, `ix_analyses_status` — filters `/analyses` list by user + status lookups
+- `AudioFile` table: `ix_audio_files_analysis_id` — speeds up file queries per analysis
+- `Job` table: `ix_jobs_analysis_id` — fast status lookups
+- `AnalysisResult` table: `ix_analysis_results_analysis_id` — quick result retrieval
+
+Indexes defined via SQLAlchemy `__table_args__` tuples containing `Index()` objects. Migration `efb22115ecc5` applies them automatically on `alembic upgrade head`.
+
+**Duration tracking added to Job model** (`models.py` line 44):
+- `duration_ms: Column(Integer, nullable=True)` — records how long audio processing takes per job
+- Set in `tasks.py` (lines 43, 113-114) via `time.monotonic()` from job start to completion
+- Enables performance profiling: `/analyses/{id}/status` endpoint can return job duration for debugging slow analyses
+
+### Structured JSON Logging (`main.py`)
+
+**Global error handler** (lines 32-35):
+- Catches all unhandled exceptions
+- Logs as JSON: `{"time":"...", "level":"ERROR", "name":"spektr", "msg":"unhandled_error: GET /path - error details"}`
+- Returns `{"error": "Internal server error"}` to client (never leaks stack traces)
+- Enables Sentry/Datadog ingestion: tools parse JSON logs automatically
+
+**Format**:
+```
+{"time":"2026-04-30 22:30:15", "level":"ERROR", "name":"spektr", "msg":"unhandled_error: POST /auth/register - Email already registered"}
+```
+
+### Backend Integration Tests (`backend/tests/test_api.py`)
+
+**11 API tests covering:**
+
+1. `test_health` — `/health` returns 200 + `{"status": "ok"}`
+2. `test_create_analysis` — POST creates analysis with title
+3. `test_create_analysis_no_title` — POST creates without title (optional field)
+4. `test_get_status_no_job` — 404 before job is enqueued
+5. `test_get_results_not_ready` — 404 before DSP processing completes (includes Redis mock for CI)
+6. `test_list_analyses_requires_auth` — 401 without Bearer token
+7. `test_register_and_login` — register + login flow with token return
+8. `test_register_duplicate_email` — 409 on duplicate
+9. `test_login_wrong_password` — 401 on wrong credentials
+10. `test_me_requires_auth` — GET /me needs Bearer token
+11. `test_me_with_valid_token` — GET /me returns user email with valid JWT
+
+**Test setup** (lines 1-40):
+- SQLite in-memory database (`sqlite:///./test.db`) — no Postgres needed in CI
+- `@pytest.fixture(autouse=True) setup_db()` — creates all tables before each test, drops after (isolation)
+- Dependency override for `get_db` from both `analyses` and `auth` routers (lines 37-38)
+- `monkeypatch` used in `test_get_results_not_ready` to mock Redis (avoids connection error in CI where no Redis server exists)
+
+**Coverage impact**: 11 tests exercise auth endpoints (54% coverage) and analyses endpoints (39% coverage).
+
+### Frontend Component Tests
+
+**LoginPage.test.tsx** (5 tests):
+- Renders "Sign in" heading (via `getByRole('heading')` to distinguish from links)
+- Renders email + password inputs
+- Has "Register" link
+- Has "Continue without signing in" link
+- Shows error on wrong credentials (future: async testing)
+
+**RegisterPage.test.tsx** (3 tests):
+- Renders "Create account" heading (via role query)
+- Renders email + password inputs
+- Has "Sign in" link
+
+**Cleanup**: `afterEach(() => cleanup())` removes DOM between tests (Vitest best practice with `@testing-library/react`).
+
+**All 9 tests pass** with proper React Router + AuthProvider wrappers.
+
+### Test Dependencies (`requirements.txt`)
+
+- `pytest-cov>=4.0.0` — measures code coverage (lines 52)
+- `aiosqlite>=0.19.0` — enables SQLite with SQLAlchemy async (line 53)
+
+### CI Coverage Enforcement (`.github/workflows/ci.yml`)
+
+**Line 32**:
+```yaml
+run: pytest --cov=app --cov-report=term-missing --cov-fail-under=45
+```
+
+- `--cov=app` — measure coverage for `app/` folder only (not tests/)
+- `--cov-report=term-missing` — print which lines aren't covered
+- `--cov-fail-under=45` — fail CI if coverage < 45%
+
+**Threshold rationale**: Realistic 45% instead of ideal 60%+:
+- Audio processing (Celery tasks) needs real audio files + Redis/Postgres = hard to test without full stack
+- Downloader/storage services talk to Supabase = external dependency, skipped in unit tests
+- Actual coverage achieved: **51%** — above threshold, passing
+
+### Alembic Migration
+
+**Migration `efb22115ecc5`** — applied via `alembic upgrade head` on backend startup:
+- Creates indexes on Analysis, AudioFile, Job, AnalysisResult tables
+- Adds `duration_ms` column to Job table
+
+### Design Decisions
+
+1. **SQLite for tests, not Postgres** — CI has no database infrastructure; SQLite is in-process, fast, isolated
+2. **Monkeypatch Redis in one test** — Redis isn't part of CI; mocking allows test to run without external service
+3. **45% coverage threshold** — honest number reflecting integration test reality (Celery, storage, Supabase calls need full stack)
+4. **Indexes on foreign keys + status** — common query patterns: `WHERE user_id = X`, `WHERE status = 'pending'`, `WHERE analysis_id = Y`
+5. **JSON logging for production** — tools like Sentry/Datadog parse structured logs; plain text is unqueryable
+
+### Known Limits & Future Work
+
+- No database connection pooling optimization (HikariCP equivalent for Python)
+- No query profiling dashboard (raw SQL timing logs are available)
+- No slow-query alerts (can be added to logger)
+- Celery task tests are integration tests only (no unit mocking of Celery)
+- Storage/download tests require Supabase credential or mocking
 
 ---
 
