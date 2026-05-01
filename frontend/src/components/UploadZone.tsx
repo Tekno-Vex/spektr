@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useRef, useEffect } from 'react'
 import type { FileRejection } from 'react-dropzone'
 import { useDropzone } from 'react-dropzone'
 import axios from 'axios'
@@ -41,7 +41,34 @@ export function UploadZone() {
   const [analysisId, setAnalysisId] = useState<number | null>(null)
   const [wsEvent, setWsEvent] = useState<WsEvent | null>(null)
   const [phase, setPhase] = useState<'pick' | 'uploading' | 'processing' | 'done'>('pick')
+  const wsConnected = useRef(false)
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const navigate = useNavigate()
+
+  // Polling fallback: if WebSocket never connects, poll /status every 3s
+  useEffect(() => {
+    if (phase !== 'processing' || analysisId === null) return
+    // Give WebSocket 8 seconds to connect before starting polling
+    const startPollTimer = setTimeout(() => {
+      if (wsConnected.current) return
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+          const { data } = await axios.get(`${API}/api/v1/analyses/${analysisId}/status`)
+          if (data.status === 'completed' || data.status === 'done') {
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+            navigate(`/results/${analysisId}`)
+          }
+        } catch {
+          // ignore transient errors, keep polling
+        }
+      }, 3000)
+    }, 8000)
+
+    return () => {
+      clearTimeout(startPollTimer)
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+    }
+  }, [phase, analysisId, navigate])
 
   const updateEntry = (idx: number, patch: Partial<FileEntry>) =>
     setEntries(prev => prev.map((e, i) => (i === idx ? { ...e, ...patch } : e)))
@@ -74,6 +101,11 @@ export function UploadZone() {
   const connectWs = (id: number, retry = 0) => {
     const ws = new WebSocket(`${WS_BASE}/ws/analyses/${id}`)
     ws.onmessage = e => {
+      wsConnected.current = true
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
       const data: WsEvent = JSON.parse(e.data)
       setWsEvent(data)
       if (data.stage === 'Done') {
@@ -144,6 +176,11 @@ export function UploadZone() {
     setAnalysisId(null)
     setWsEvent(null)
     setPhase('pick')
+    wsConnected.current = false
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
   }
 
   return (
