@@ -37,7 +37,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "https://spektr-omega.vercel.app"],
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
