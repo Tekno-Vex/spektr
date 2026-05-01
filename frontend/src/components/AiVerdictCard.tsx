@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import axios from 'axios'
 
 const API = 'http://localhost:8000'
@@ -36,20 +36,7 @@ export function AiVerdictCard({ analysisId }: Props) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const abortRef = useRef<AbortController | null>(null)
 
-  useEffect(() => {
-    // Try to load already-stored verdict first
-    axios
-      .get<Verdict>(`${API}/api/v1/analyses/${analysisId}/verdict`)
-      .then(res => setVerdict(res.data))
-      .catch(() => {
-        // Not ready yet — stream it
-        streamVerdict()
-      })
-
-    return () => abortRef.current?.abort()
-  }, [analysisId])
-
-  const streamVerdict = async () => {
+  const streamVerdict = useCallback(async () => {
     setStreaming(true)
     setRawStream('')
     abortRef.current = new AbortController()
@@ -87,7 +74,20 @@ export function AiVerdictCard({ analysisId }: Props) {
     } finally {
       setStreaming(false)
     }
-  }
+  }, [analysisId])
+
+  useEffect(() => {
+    // Try to load already-stored verdict first
+    axios
+      .get<Verdict>(`${API}/api/v1/analyses/${analysisId}/verdict`)
+      .then(res => setVerdict(res.data))
+      .catch(() => {
+        // Not ready yet — stream it
+        streamVerdict()
+      })
+
+    return () => abortRef.current?.abort()
+  }, [analysisId, streamVerdict])
 
   const confidenceColor = (c: string) => {
     if (c === 'high') return '#4ade80'

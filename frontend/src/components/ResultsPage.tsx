@@ -318,6 +318,7 @@ function Section({
   return (
     <div
       id={id}
+      // eslint-disable-next-line react-hooks/immutability
       ref={el => { refMap.current[id] = el }}
       style={{ marginBottom: 56 }}
     >
