@@ -3,7 +3,7 @@ import os
 import uuid
 
 import magic
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,7 @@ from app.base import SessionLocal
 from app.models.models import Analysis, AudioFile, Job
 from app.services.storage import upload_file
 from app.tasks import process_analysis
+from app.services.auth import decode_token
 import redis as sync_redis
 
 router = APIRouter(tags=["analyses"])
@@ -38,10 +39,25 @@ def get_db():
     finally:
         db.close()
 
+def get_optional_user_id(request: Request) -> int | None:
+    """Returns user_id from Bearer token, or None if not authenticated."""
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return None
+    try:
+        payload = decode_token(auth[7:])
+        return int(payload["sub"])
+    except Exception:
+        return None
 
 @router.post("/analyses", summary="Create a new analysis")
-def create_analysis(title: str = Form(None), db: Session = Depends(get_db)):
-    analysis = Analysis(title=title, status="pending")
+def create_analysis(
+    request: Request,
+    title: str = Form(None),
+    db: Session = Depends(get_db),
+):
+    user_id = get_optional_user_id(request)
+    analysis = Analysis(title=title, status="pending", user_id=user_id)
     db.add(analysis)
     db.commit()
     db.refresh(analysis)
@@ -129,6 +145,45 @@ def get_status(analysis_id: int, db: Session = Depends(get_db)):
     if not job:
         raise HTTPException(status_code=404, detail="No job found for this analysis")
     return {"job_id": job.id, "status": job.status, "error_msg": job.error_msg}
+
+@router.get("/analyses", summary="Get analysis history for current user")
+def list_analyses(
+    request: Request,
+    cursor: int | None = None,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+):
+    user_id = get_optional_user_id(request)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    query = (
+        db.query(Analysis)
+        .filter(
+            Analysis.user_id == user_id,
+            Analysis.deleted_at.is_(None),
+        )
+        .order_by(Analysis.id.desc())
+    )
+    if cursor:
+        query = query.filter(Analysis.id < cursor)
+    rows = query.limit(limit + 1).all()
+
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+    next_cursor = rows[-1].id if has_more else None
+
+    items = [
+        {
+            "id": r.id,
+            "title": r.title,
+            "status": r.status,
+            "is_public": r.is_public,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
+    return {"items": items, "next_cursor": next_cursor}
 
 @router.get("/analyses/{analysis_id}/results", summary="Get analysis results")
 def get_results(analysis_id: int, db: Session = Depends(get_db)):

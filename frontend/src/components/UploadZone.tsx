@@ -148,6 +148,12 @@ export function UploadZone() {
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', fontFamily: 'sans-serif', padding: 24 }}>
+      {/* Top nav */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '12px 20px', gap: 8 }}>
+        <a href="/dashboard" style={{ color: '#555', fontSize: 12, textDecoration: 'none' }}>My analyses</a>
+        <a href="/login" style={{ color: '#4f8ef7', fontSize: 12, textDecoration: 'none' }}>Sign in</a>
+      </div>
+
       <h1 style={{ marginBottom: 8 }}>Spektr — Upload Audio</h1>
       <p style={{ color: '#888', marginBottom: 24 }}>
         Upload up to 5 audio files (.mp3 .flac .wav .ogg .m4a) · max 200 MB each
