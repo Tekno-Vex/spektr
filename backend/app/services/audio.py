@@ -1,12 +1,13 @@
+import gc
 import io
 import math
 import numpy as np
 import librosa
 import scipy.signal  # type: ignore[import-untyped]
 
-SR_TARGET = 22050   # resample everything to this rate
-N_FFT = 2048
-HOP = 512
+SR_TARGET = 11025   # 11 kHz — halves RAM vs 22 kHz, still fine for comparison
+N_FFT = 1024        # smaller FFT window — quarter the STFT memory
+HOP = 256
 
 
 def load_audio(data: bytes) -> tuple[np.ndarray, float]:
@@ -49,24 +50,30 @@ def compute_waveform(y_mono: np.ndarray, n_points: int = 2000) -> list[float]:
 def compute_spectrogram(y_mono: np.ndarray) -> dict:
     """
     Short-Time Fourier Transform converted to dB.
-    Returns a 256×512 grid suitable for rendering as a heatmap.
+    Returns a 128×256 grid suitable for rendering as a heatmap.
     Also detects the high-frequency rolloff point (useful for spotting
     lossy-compressed files mastered as fake lossless).
+    Reduced resolution vs original to stay within 512 MB RAM on free tier.
     """
     S = np.abs(librosa.stft(y_mono, n_fft=N_FFT, hop_length=HOP))
     S_db = librosa.amplitude_to_db(S, ref=np.max)
 
-    # Downsample to 256 freq bins × 512 time frames
     freq_bins, time_frames = S_db.shape
-    fb = min(256, freq_bins)
-    tf = min(512, time_frames)
-    S_small = S_db[:fb, :tf]
 
-    # Detect HF rolloff: highest freq bin where mean energy > -80 dB
+    # Detect HF rolloff before downsampling
     mean_per_freq = S_db.mean(axis=1)
     rolloff_bin = int(np.argmax(mean_per_freq[::-1] > -80))
     rolloff_bin = freq_bins - rolloff_bin
     rolloff_hz = int(rolloff_bin * SR_TARGET / N_FFT)
+
+    # Downsample to 128 freq bins × 256 time frames (quarter of original)
+    fb = min(128, freq_bins)
+    tf = min(256, time_frames)
+    S_small = S_db[:fb, :tf].copy()
+
+    # Free the large arrays immediately
+    del S, S_db
+    gc.collect()
 
     return {
         "data": S_small.tolist(),
@@ -264,18 +271,38 @@ def analyse_file(data: bytes) -> dict:
     Returns a dict with keys: waveform, spectrogram, loudness,
     frequency, rms_curve, stereo, sections.
     All NaN/Infinity values are replaced with None for safe JSON serialisation.
+    Memory is freed aggressively between steps to stay within 512 MB on free tier.
     """
     y, sr = load_audio(data)
+    # Free raw bytes immediately — no longer needed
+    del data
+    gc.collect()
+
     y_mono = to_mono(y)
 
+    # Compute each metric then explicitly free intermediates
+    waveform = compute_waveform(y_mono)
+    spectrogram = compute_spectrogram(y_mono)
+    gc.collect()
+
+    loudness = compute_loudness(y_mono, sr)
+    frequency = compute_frequency(y_mono, sr)
+    rms_curve = compute_rms_curve(y_mono, sr)
+    stereo = compute_stereo(y)
+    sections = compute_sections(y_mono, sr)
+
+    # Free audio arrays — results are already plain Python lists/dicts
+    del y, y_mono
+    gc.collect()
+
     result = {
-        "waveform": compute_waveform(y_mono),
-        "spectrogram": compute_spectrogram(y_mono),
-        "loudness": compute_loudness(y_mono, sr),
-        "frequency": compute_frequency(y_mono, sr),
-        "rms_curve": compute_rms_curve(y_mono, sr),
-        "stereo": compute_stereo(y),
-        "sections": compute_sections(y_mono, sr),
+        "waveform": waveform,
+        "spectrogram": spectrogram,
+        "loudness": loudness,
+        "frequency": frequency,
+        "rms_curve": rms_curve,
+        "stereo": stereo,
+        "sections": sections,
     }
 
     # Sanitise: replace NaN / Inf with None so JSON serialisation never breaks

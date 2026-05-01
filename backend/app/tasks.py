@@ -1,3 +1,4 @@
+import gc
 import json
 import os
 import time
@@ -55,7 +56,8 @@ def process_analysis(self, analysis_id: int, job_id: int):
             data = download_file(str(audio_file.file_path))
 
             _publish(r, channel, "Waveform")
-            result = analyse_file(data)
+            result = analyse_file(data)  # data freed inside analyse_file
+            gc.collect()
 
             _publish(r, channel, "Spectrogram")
             _publish(r, channel, "Loudness")
@@ -73,7 +75,17 @@ def process_analysis(self, analysis_id: int, job_id: int):
                 sections=result["sections"],
             )
             db.add(ar)
-            all_results.append(result)
+            # Keep only a lightweight summary for AI verdict (not the full spectrogram)
+            all_results.append({
+                "loudness": result["loudness"],
+                "frequency": result["frequency"],
+                "stereo": result["stereo"],
+                "sections": result["sections"],
+                "waveform": result["waveform"],
+                "rms_curve": result["rms_curve"],
+                "spectrogram": result["spectrogram"],
+            })
+            gc.collect()
 
         db.commit()
 
