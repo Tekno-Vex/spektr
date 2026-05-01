@@ -1,5 +1,6 @@
 import json
 import os
+import time
 
 import redis
 
@@ -39,6 +40,7 @@ def process_analysis(self, analysis_id: int, job_id: int):
             raise ValueError(f"Job {job_id} not found")
         job.status = "processing"  # type: ignore[assignment]
         db.commit()
+        started_at = time.monotonic()
 
         audio_files = (
             db.query(AudioFile)
@@ -108,7 +110,10 @@ def process_analysis(self, analysis_id: int, job_id: int):
 
         db.commit()
 
+        elapsed_ms = int((time.monotonic() - started_at) * 1000)
+        job.duration_ms = elapsed_ms  # type: ignore[assignment]
         _publish(r, channel, "Done")
+        
         job.status = "completed"  # type: ignore[assignment]
         db.commit()
 
