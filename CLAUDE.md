@@ -1,7 +1,7 @@
 # CLAUDE.md — Spektr Project Context
 
 This file documents every architectural decision, known quirk, and implementation detail
-accumulated across Sprint 0, Sprint 1, Sprint 2, Sprint 3, and Sprint 4. Read this before making any changes.
+accumulated across Sprint 0, Sprint 1, Sprint 2, Sprint 3, Sprint 4, and Sprint 5. Read this before making any changes.
 
 ---
 
@@ -93,11 +93,14 @@ SUPABASE_URL=https://<project-id>.supabase.co
 SUPABASE_KEY=<service-role-key>
 SUPABASE_BUCKET=analyses
 GEMINI_API_KEY=<google-ai-studio-key>
+SECRET_KEY=<random-32-hex-chars-for-jwt>
 ```
 
 `DATABASE_URL` uses the Docker Compose service name `postgres` — not `localhost`.
 Alembic's `env.py` reads this variable at runtime to override the hardcoded
 `sqlalchemy.url` in `alembic.ini`.
+
+`SECRET_KEY` is used for JWT token signing. Generate with: `python -m secrets token_hex(32)`
 
 ---
 
@@ -107,9 +110,15 @@ All endpoints are prefixed `/api/v1`.
 
 | Method | Path                              | Description                                 |
 |--------|-----------------------------------|---------------------------------------------|
+| POST   | `/auth/register`                  | Register new user; returns access token     |
+| POST   | `/auth/login`                     | Log in with email/password; returns token   |
+| POST   | `/auth/refresh`                   | Exchange refresh token for new access token |
+| POST   | `/auth/logout`                    | Invalidate refresh token (blacklist in Redis) |
+| GET    | `/auth/me`                        | Get current user info (requires access token) |
 | POST   | `/analyses`                       | Create a new analysis (returns `id`)        |
 | POST   | `/analyses/{id}/files`            | Upload one audio file; validates MIME type  |
 | POST   | `/analyses/{id}/process`          | Enqueue Celery processing job               |
+| GET    | `/analyses`                       | List user's analysis history (cursor pagination) |
 | GET    | `/analyses/{id}/status`           | Latest job status (pending/processing/done) |
 | GET    | `/analyses/{id}/results`          | Fetch analysis results (Redis cache or DB)  |
 | GET    | `/analyses/{id}/verdict`          | Fetch stored AI verdict from DB              |
@@ -130,8 +139,8 @@ All endpoints are prefixed `/api/v1`.
 
 ### Migrations chain
 ```
-1f35ee457180  →  b2f3e8a1c9d4  →  9e87bf669ba7  →  c3a1f2e8d7b5  →  0f7abee2e7e0
-(initial)        (mime_type)       (analysis_results)  (rms_curve)    (ai_verdicts)
+1f35ee457180  →  b2f3e8a1c9d4  →  9e87bf669ba7  →  c3a1f2e8d7b5  →  0f7abee2e7e0  →  06649dd608d0
+(initial)        (mime_type)       (analysis_results)  (rms_curve)    (ai_verdicts)    (is_public+deleted_at)
 ```
 
 Always create a new migration file manually or via `alembic revision --autogenerate`
@@ -139,8 +148,8 @@ when adding columns. Never edit existing migration files.
 
 ### Models (classic SQLAlchemy Column style)
 
-- **User** — `id, email, hashed_password, created_at`
-- **Analysis** — `id, user_id, title, status, created_at`
+- **User** — `id, email, hashed_password, created_at` (Sprint 5)
+- **Analysis** — `id, user_id, title, status, is_public, deleted_at, created_at` (Sprint 5: added is_public + deleted_at)
 - **AudioFile** — `id, analysis_id, label, file_path, mime_type, created_at`
 - **Job** — `id, analysis_id, status, error_msg, created_at`
 - **AnalysisResult** — `id, analysis_id, audio_file_id, waveform, spectrogram,
@@ -401,6 +410,142 @@ Sprint 4 adds structured LLM output on top of the DSP pipeline.
 
 ---
 
+## Sprint 5 Authentication & User Accounts
+
+Sprint 5 adds JWT-based user authentication, user account creation, and per-user analysis history.
+
+### Authentication design
+
+- **Access Token:** Short-lived JWT (15 minutes), stored in React state/memory (NOT localStorage — XSS risk)
+- **Refresh Token:** Long-lived JWT (7 days), stored in HttpOnly cookie; automatically sent by browser on all requests
+- **Token Rotation:** On refresh, old token is blacklisted in Redis with TTL matching its expiry time
+- **Password Hashing:** Bcrypt (cost factor 12) via `bcrypt>=4.0.0` library (replaced `passlib` for Python 3.12 compatibility)
+- **Rate Limiting:** `slowapi` on `/auth/*` endpoints; max 10 attempts per 15 min per IP; returns 429
+
+### Backend auth service (`backend/app/services/auth.py`)
+
+- `hash_password(password: str) -> str` — bcrypt hashing (cost 12)
+- `verify_password(plain: str, hashed: str) -> bool` — bcrypt check
+- `create_access_token(user_id: int) -> str` — HS256 JWT with 15-min expiry + `type: "access"`
+- `create_refresh_token(user_id: int) -> str` — HS256 JWT with 7-day expiry + `type: "refresh"`
+- `decode_token(token: str) -> dict` — verify and decode JWT, raises on invalid/expired
+
+### Auth endpoints (`backend/app/api/auth.py`)
+
+- `POST /auth/register`
+  - Accepts `{email, password}` (password min 8 chars)
+  - Hashes password with bcrypt, creates User row, returns `access_token` + `{id, email}`
+  - Sets HttpOnly refresh cookie with 7-day max-age, SameSite=lax, Secure=False (set True in prod)
+  - Rejects if email already registered (409)
+- `POST /auth/login`
+  - Accepts `{email, password}`
+  - Verifies email exists and password matches hash; returns `access_token` + `{id, email}`
+  - Sets HttpOnly refresh cookie (same as register)
+  - Rejects if invalid credentials (401)
+- `POST /auth/refresh`
+  - Reads refresh token from HttpOnly cookie
+  - Checks Redis blacklist; rejects if revoked (401)
+  - Decodes and validates `type: "refresh"`; rejects if `type: "access"` is sent (401)
+  - Blacklists old token in Redis with remaining TTL
+  - Issues new access + refresh tokens, returns `{access_token, user}`
+- `POST /auth/logout`
+  - Reads refresh token from cookie
+  - Blacklists it in Redis with remaining TTL
+  - Deletes the refresh cookie
+  - Returns `{message: "Logged out"}`
+- `GET /auth/me`
+  - Requires `Authorization: Bearer <access_token>` header
+  - Decodes token, retrieves User, returns `{id, email}`
+  - Rejects with 401 if token missing/invalid/expired
+
+### Analysis changes
+
+- `POST /api/v1/analyses` now accepts optional Bearer token
+  - If authenticated, links `user_id` to Analysis row
+  - If anonymous, `user_id` is NULL (guest analysis)
+- `GET /api/v1/analyses` — **new endpoint** for authenticated users
+  - Returns paginated list of their analyses: `{items: [{id, title, status, is_public, created_at}], next_cursor}`
+  - Filters by `user_id` + `deleted_at IS NULL` (soft-delete support)
+  - Cursor-based pagination: `?cursor=<id>&limit=20` (limit+1 trick to detect has_more)
+- `is_public` field is in the schema (default `"false"`) but no UI/endpoint for toggling yet — foundation for future share feature
+- `deleted_at` field is in the schema but no soft-delete endpoint yet — foundation for future archive feature
+
+### Frontend auth context (`frontend/src/contexts/AuthContext.tsx`)
+
+Provides global auth state via React Context:
+
+```typescript
+interface AuthContextValue {
+  user: User | null                                 // Current user or null
+  accessToken: string | null                        // In-memory access token
+  login: (email: string, password: string) => Promise<void>
+  register: (email: string, password: string) => Promise<void>
+  logout: () => Promise<void>
+  refresh: () => Promise<string | null>
+}
+```
+
+- `login(email, password)` — `POST /auth/login`, stores token + user
+- `register(email, password)` — `POST /auth/register`, stores token + user
+- `logout()` — `POST /auth/logout` (clears cookie server-side), clears state
+- `refresh()` — `POST /auth/refresh` (uses HttpOnly cookie), returns new token or null on failure
+- All methods use `withCredentials: true` for axios to send/receive cookies
+
+### Frontend pages
+
+- **LoginPage** (`frontend/src/components/LoginPage.tsx`)
+  - Form with email + password inputs
+  - Error display; loading state during request
+  - Link to register or "continue without signing in" → home page
+- **RegisterPage** (`frontend/src/components/RegisterPage.tsx`)
+  - Form with email + password inputs
+  - Client-side password min-length check (8 chars)
+  - Error display; loading state during request
+  - Link to login or "continue without signing in" → home page
+- **DashboardPage** (`frontend/src/components/DashboardPage.tsx`)
+  - Displays user email in header
+  - Lists user's analyses: `[title or #id, created_at, status badge, View link]`
+  - "+ New Analysis" button (navigates to `/`)
+  - "Sign out" button
+  - Redirects to `/login` if not authenticated
+  - Shows "No analyses yet" if list is empty
+
+### Routing changes
+
+- `frontend/src/App.tsx` adds 3 new routes:
+  - `/login` → `<LoginPage />`
+  - `/register` → `<RegisterPage />`
+  - `/dashboard` → `<DashboardPage />`
+- `frontend/src/main.tsx` wraps `<App />` in `<AuthProvider>`
+- UploadZone header links to `/dashboard` and `/login`
+
+### Sprint 5 dependencies
+
+- Backend runtime:
+  - `bcrypt>=4.0.0` (replaced `passlib[bcrypt]`)
+  - `python-jose[cryptography]>=3.3.0` (for JWT)
+  - `slowapi>=0.1.9` (rate limiting)
+- Frontend runtime: (no new deps — uses existing axios + react-router-dom)
+
+### Key decisions
+
+- No session-based auth (stateless JWT preferred for scalability)
+- Access token kept in memory only — browser refresh clears it, but refresh token in cookie auto-restores
+- Refresh token rotation on every refresh — prevents token replay attacks
+- SqlAlchemy classic Column style means `user.id` is `Column[int]` type; must cast to `int()` before passing to token funcs
+- Docker CORS includes `allow_credentials=True` for cookies to work cross-origin (if needed)
+
+### Known limits
+
+- No multi-device session tracking (all refresh tokens are equally valid)
+- No password reset flow (user cannot recover forgotten password)
+- No email verification (any email can register without confirmation)
+- Google OAuth / SSO not implemented (tagged "Bonus" in checklist)
+- Public share URL not implemented (is_public flag exists but no endpoint to toggle or fetch by token)
+- Soft-delete archive is implemented in schema but no frontend "Archive" button yet
+
+---
+
 ## CI / GitHub Actions (`.github/workflows/ci.yml`)
 
 ### Backend job
@@ -415,9 +560,15 @@ Sprint 4 adds structured LLM output on top of the DSP pipeline.
 4. `npm run build` — production build
 
 ### mypy suppressions in use
-- `# type: ignore[import-untyped]` on `celery` and `scipy.signal` imports
-  (neither ships type stubs)
+- `# type: ignore[import-untyped]` on `celery`, `scipy.signal`, `bcrypt`, `jose` imports
+  (none ship type stubs)
 - `# type: ignore[assignment]` on SQLAlchemy column attribute assignments in `tasks.py`
+
+### eslint suppressions in use (frontend)
+- `# eslint-disable-next-line react-hooks/immutability` in `ResultsPage.tsx` ref callback
+  (legitimate ref map mutation pattern that React intentionally supports)
+- `// eslint-disable-next-line react-refresh/only-export-components` in `AuthContext.tsx`
+  (mixing component + hook export is the standard React Context pattern)
 
 ---
 
