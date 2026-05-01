@@ -22,20 +22,21 @@ describe('LoginPage', () => {
 
   it('renders email and password inputs', () => {
     render(<LoginPage />, { wrapper: Wrapper })
-    expect(screen.getByPlaceholderText('Email')).toBeTruthy()
-    expect(screen.getByPlaceholderText('Password')).toBeTruthy()
+    expect(screen.getByPlaceholderText('you@example.com')).toBeTruthy()
+    expect(screen.getByPlaceholderText('••••••••')).toBeTruthy()
   })
 
   it('shows error if password is missing on submit', async () => {
     render(<LoginPage />, { wrapper: Wrapper })
-    const emailInput = screen.getByPlaceholderText('Email')
+    const emailInput = screen.getByPlaceholderText('you@example.com')
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
     expect(screen.getAllByText('Sign in').length).toBeGreaterThan(0)
   })
 
   it('has a link to the register page', () => {
     render(<LoginPage />, { wrapper: Wrapper })
-    expect(screen.getByText('Register')).toBeTruthy()
+    const link = screen.getByRole('link', { name: 'Create one' })
+    expect(link.getAttribute('href')).toMatch(/register/)
   })
 
   it('has a link to continue without signing in', () => {

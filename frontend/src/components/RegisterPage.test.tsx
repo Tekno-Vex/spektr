@@ -22,8 +22,8 @@ describe('RegisterPage', () => {
 
   it('renders email and password inputs', () => {
     render(<RegisterPage />, { wrapper: Wrapper })
-    expect(screen.getByPlaceholderText('Email')).toBeTruthy()
-    expect(screen.getByPlaceholderText('Password (min 8 characters)')).toBeTruthy()
+    expect(screen.getByPlaceholderText('you@example.com')).toBeTruthy()
+    expect(screen.getByPlaceholderText('Min 8 characters')).toBeTruthy()
   })
 
   it('has a link to the login page', () => {
