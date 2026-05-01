@@ -68,7 +68,15 @@ def test_get_status_no_job(client):
     assert res.status_code == 404
 
 
-def test_get_results_not_ready(client):
+def test_get_results_not_ready(client, monkeypatch):
+    # Mock Redis so the test doesn't require a live Redis connection
+    class FakeRedis:
+        def get(self, key):
+            return None
+        def close(self):
+            pass
+
+    monkeypatch.setattr("app.api.analyses.sync_redis.from_url", lambda *a, **kw: FakeRedis())
     analysis_id = client.post("/api/v1/analyses", data={}).json()["id"]
     res = client.get(f"/api/v1/analyses/{analysis_id}/results")
     assert res.status_code == 404
